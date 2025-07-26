@@ -1,0 +1,324 @@
+{% extends "base.html" %}
+
+{% block title %}Dashboard - AI Playground{% endblock %}
+
+{% block content %}
+<div class="container-fluid py-4">
+    <!-- Header Section -->
+    <div class="row mb-4">
+        <div class="col-12">
+            <div class="dashboard-header">
+                <h1 class="dashboard-title">
+                    <i class="fas fa-code me-3"></i>AI Playground
+                </h1>
+                <p class="dashboard-subtitle">
+                    Plateforme avancée d'analyse et manipulation de contenu IA
+                </p>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Stats Cards -->
+    <div class="row mb-4">
+        <div class="col-md-3 col-sm-6 mb-3">
+            <div class="stat-card stat-card-primary">
+                <div class="stat-icon">
+                    <i class="fas fa-file-text"></i>
+                </div>
+                <div class="stat-content">
+                    <h3 class="stat-number">{{ stats.total }}</h3>
+                    <p class="stat-label">Total Générations</p>
+                </div>
+            </div>
+        </div>
+        
+        <div class="col-md-3 col-sm-6 mb-3">
+            <div class="stat-card stat-card-success">
+                <div class="stat-icon">
+                    <i class="fas fa-check-circle"></i>
+                </div>
+                <div class="stat-content">
+                    <h3 class="stat-number">{{ stats.completed }}</h3>
+                    <p class="stat-label">Complétées</p>
+                </div>
+            </div>
+        </div>
+        
+        <div class="col-md-3 col-sm-6 mb-3">
+            <div class="stat-card stat-card-warning">
+                <div class="stat-icon">
+                    <i class="fas fa-spinner fa-spin"></i>
+                </div>
+                <div class="stat-content">
+                    <h3 class="stat-number">{{ stats.generating }}</h3>
+                    <p class="stat-label">En cours</p>
+                </div>
+            </div>
+        </div>
+        
+        <div class="col-md-3 col-sm-6 mb-3">
+            <div class="stat-card stat-card-danger">
+                <div class="stat-icon">
+                    <i class="fas fa-exclamation-triangle"></i>
+                </div>
+                <div class="stat-content">
+                    <h3 class="stat-number">{{ stats.error }}</h3>
+                    <p class="stat-label">Erreurs</p>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Claude Status -->
+    <div class="row mb-4">
+        <div class="col-12">
+            <div class="card claude-status-card">
+                <div class="card-body">
+                    <div class="d-flex align-items-center">
+                        <div class="claude-status-icon me-3">
+                            <i class="fas fa-robot {{ 'text-success' if claude_available else 'text-warning' }}"></i>
+                        </div>
+                        <div class="flex-grow-1">
+                            <h5 class="mb-1">Statut Claude AI</h5>
+                            <p class="mb-0 text-muted">
+                                {% if claude_available %}
+                                    <span class="badge bg-success me-2">Connecté</span>
+                                    L'API Claude est opérationnelle
+                                {% else %}
+                                    <span class="badge bg-warning me-2">Mode Simulation</span>
+                                    API non configurée - Fonctionnement en mode démo
+                                {% endif %}
+                            </p>
+                        </div>
+                        <div>
+                            <a href="{{ url_for('generator') }}" class="btn btn-primary">
+                                <i class="fas fa-magic me-2"></i>Nouveau
+                            </a>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Active Generations & Recent History -->
+    <div class="row">
+        <!-- Active Generations -->
+        <div class="col-lg-6 mb-4">
+            <div class="card dashboard-card">
+                <div class="card-header">
+                    <h5 class="card-title mb-0">
+                        <i class="fas fa-cogs me-2"></i>Générations en cours
+                    </h5>
+                </div>
+                <div class="card-body">
+                    {% if active_generations %}
+                        <div class="active-generations">
+                            {% for gen in active_generations %}
+                            <div class="active-generation-item" data-generation-id="{{ gen.id }}">
+                                <div class="d-flex align-items-center mb-2">
+                                    <div class="generation-status me-2">
+                                        <i class="fas fa-spinner fa-spin text-warning"></i>
+                                    </div>
+                                    <div class="flex-grow-1">
+                                        <p class="mb-0 fw-medium">{{ gen.prompt }}</p>
+                                        <small class="text-muted">Démarrée: {{ gen.started_at or gen.timestamp }}</small>
+                                    </div>
+                                </div>
+                                <div class="progress progress-sm">
+                                    <div class="progress-bar" role="progressbar" 
+                                         style="width: {{ (gen.progress * 100)|round(1) }}%"
+                                         aria-valuenow="{{ (gen.progress * 100)|round(1) }}" 
+                                         aria-valuemin="0" aria-valuemax="100">
+                                        {{ (gen.progress * 100)|round(1) }}%
+                                    </div>
+                                </div>
+                            </div>
+                            {% endfor %}
+                        </div>
+                    {% else %}
+                        <div class="empty-state">
+                            <i class="fas fa-clock text-muted"></i>
+                            <p class="text-muted mb-0">Aucune génération en cours</p>
+                        </div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+        
+        <!-- Recent History -->
+        <div class="col-lg-6 mb-4">
+            <div class="card dashboard-card">
+                <div class="card-header d-flex justify-content-between align-items-center">
+                    <h5 class="card-title mb-0">
+                        <i class="fas fa-history me-2"></i>Historique récent
+                    </h5>
+                    <a href="{{ url_for('history') }}" class="btn btn-sm btn-outline-primary">
+                        Voir tout
+                    </a>
+                </div>
+                <div class="card-body">
+                    {% if recent_history %}
+                        <div class="recent-history">
+                            {% for item in recent_history %}
+                            <div class="history-item">
+                                <div class="d-flex align-items-start">
+                                    <div class="history-status me-2">
+                                        <i class="fas {{ 'fa-check-circle text-success' if item.status == 'completed' else 'fa-exclamation-triangle text-danger' }}"></i>
+                                    </div>
+                                    <div class="flex-grow-1">
+                                        <p class="mb-1 fw-medium">{{ item.prompt }}</p>
+                                        {% if item.status == 'completed' %}
+                                            <p class="mb-1 text-muted small">{{ item.response }}</p>
+                                            <small class="text-success">
+                                                <i class="fas fa-coins me-1"></i>{{ item.token_count }} tokens
+                                            </small>
+                                        {% else %}
+                                            <small class="text-danger">{{ item.error_message or 'Erreur inconnue' }}</small>
+                                        {% endif %}
+                                        <div class="mt-1">
+                                            <small class="text-muted">{{ item.completed_at or item.timestamp }}</small>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                            {% endfor %}
+                        </div>
+                    {% else %}
+                        <div class="empty-state">
+                            <i class="fas fa-file-text text-muted"></i>
+                            <p class="text-muted mb-0">Aucun historique disponible</p>
+                            <a href="{{ url_for('generator') }}" class="btn btn-sm btn-primary mt-2">
+                                Créer première génération
+                            </a>
+                        </div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Quick Actions -->
+    <div class="row">
+        <div class="col-12">
+            <div class="card dashboard-card">
+                <div class="card-header">
+                    <h5 class="card-title mb-0">
+                        <i class="fas fa-bolt me-2"></i>Actions rapides
+                    </h5>
+                </div>
+                <div class="card-body">
+                    <div class="row">
+                        <div class="col-md-4 mb-3">
+                            <a href="{{ url_for('generator') }}" class="quick-action-card">
+                                <div class="quick-action-icon">
+                                    <i class="fas fa-magic"></i>
+                                </div>
+                                <div class="quick-action-content">
+                                    <h6>Nouvelle génération</h6>
+                                    <p class="text-muted">Créer un nouveau contenu avec Claude AI</p>
+                                </div>
+                            </a>
+                        </div>
+                        
+                        <div class="col-md-4 mb-3">
+                            <a href="{{ url_for('history') }}" class="quick-action-card">
+                                <div class="quick-action-icon">
+                                    <i class="fas fa-search"></i>
+                                </div>
+                                <div class="quick-action-content">
+                                    <h6>Rechercher</h6>
+                                    <p class="text-muted">Explorer l'historique des générations</p>
+                                </div>
+                            </a>
+                        </div>
+                        
+                        <div class="col-md-4 mb-3">
+                            <a href="#" class="quick-action-card" onclick="refreshStats()">
+                                <div class="quick-action-icon">
+                                    <i class="fas fa-sync-alt"></i>
+                                </div>
+                                <div class="quick-action-content">
+                                    <h6>Actualiser</h6>
+                                    <p class="text-muted">Mettre à jour les statistiques</p>
+                                </div>
+                            </a>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+// Actualisation des stats en temps réel
+function refreshStats() {
+    showLoading();
+    
+    fetch('/api/stats')
+        .then(response => response.json())
+        .then(data => {
+            if (!data.error) {
+                updateStatsCards(data);
+                showToast('Statistiques mises à jour', 'success');
+            }
+        })
+        .catch(error => {
+            console.error('Erreur actualisation stats:', error);
+            showToast('Erreur lors de l\'actualisation', 'error');
+        })
+        .finally(() => {
+            hideLoading();
+        });
+}
+
+function updateStatsCards(stats) {
+    document.querySelector('.stat-card-primary .stat-number').textContent = stats.total;
+    document.querySelector('.stat-card-success .stat-number').textContent = stats.completed;
+    document.querySelector('.stat-card-warning .stat-number').textContent = stats.generating;
+    document.querySelector('.stat-card-danger .stat-number').textContent = stats.error;
+}
+
+// Auto-refresh des générations actives
+function refreshActiveGenerations() {
+    const activeItems = document.querySelectorAll('.active-generation-item');
+    
+    activeItems.forEach(item => {
+        const generationId = item.dataset.generationId;
+        
+        fetch(`/api/generation/${generationId}/status`)
+            .then(response => response.json())
+            .then(data => {
+                if (data.status === 'completed' || data.status === 'error') {
+                    // Recharger la page pour mettre à jour l'affichage
+                    setTimeout(() => location.reload(), 1000);
+                } else if (data.progress !== undefined) {
+                    // Mettre à jour la barre de progression
+                    const progressBar = item.querySelector('.progress-bar');
+                    const progress = Math.round(data.progress * 100);
+                    progressBar.style.width = progress + '%';
+                    progressBar.setAttribute('aria-valuenow', progress);
+                    progressBar.textContent = progress + '%';
+                }
+            })
+            .catch(error => console.error('Erreur refresh génération:', error));
+    });
+}
+
+// Refresh auto toutes les 5 secondes si il y a des générations actives
+if (document.querySelectorAll('.active-generation-item').length > 0) {
+    setInterval(refreshActiveGenerations, 5000);
+}
+
+// Animation d'entrée
+document.addEventListener('DOMContentLoaded', function() {
+    const cards = document.querySelectorAll('.stat-card, .dashboard-card');
+    cards.forEach((card, index) => {
+        setTimeout(() => {
+            card.classList.add('card-animate');
+        }, index * 100);
+    });
+});
+</script>
+{% endblock %}

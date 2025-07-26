@@ -1,0 +1,535 @@
+{% extends "base.html" %}
+
+{% block title %}Prompts Sauvegardés - AI Playground{% endblock %}
+
+{% block extra_head %}
+<style>
+.prompt-card {
+    transition: all 0.3s ease;
+    border: 1px solid rgba(var(--bs-primary-rgb), 0.2);
+}
+
+.prompt-card:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 20px rgba(0,0,0,0.1);
+}
+
+.prompt-preview {
+    max-height: 100px;
+    overflow: hidden;
+    font-size: 0.9em;
+    color: var(--bs-secondary);
+}
+
+.category-badge {
+    font-size: 0.75em;
+    padding: 0.25rem 0.5rem;
+}
+
+.favorite-btn {
+    border: none;
+    background: none;
+    color: #ffc107;
+    font-size: 1.2em;
+}
+
+.favorite-btn:hover {
+    color: #ffb302;
+}
+
+.favorite-btn.active {
+    color: #ffc107;
+}
+
+.favorite-btn:not(.active) {
+    color: #dee2e6;
+}
+
+.prompt-actions {
+    opacity: 0;
+    transition: opacity 0.3s ease;
+}
+
+.prompt-card:hover .prompt-actions {
+    opacity: 1;
+}
+
+.search-section {
+    background: linear-gradient(135deg, var(--bs-primary), var(--bs-info));
+    color: white;
+    margin: -1rem -1rem 2rem -1rem;
+    padding: 2rem 1rem;
+    border-radius: 0 0 1rem 1rem;
+}
+
+.stats-card {
+    background: rgba(255,255,255,0.1);
+    border: 1px solid rgba(255,255,255,0.2);
+    border-radius: 0.5rem;
+    padding: 1rem;
+    text-align: center;
+}
+
+.modal-lg {
+    max-width: 800px;
+}
+
+.prompt-form-textarea {
+    min-height: 200px;
+    resize: vertical;
+}
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid py-4">
+    <!-- En-tête et statistiques -->
+    <div class="search-section">
+        <div class="row align-items-center">
+            <div class="col-md-6">
+                <h1 class="h3 mb-2">
+                    <i class="fas fa-bookmark me-2"></i>Prompts Sauvegardés
+                </h1>
+                <p class="mb-0">Gérez vos prompts réutilisables pour une génération plus efficace</p>
+            </div>
+            <div class="col-md-6">
+                <div class="row">
+                    <div class="col-4">
+                        <div class="stats-card">
+                            <div class="h4 mb-1" id="totalPrompts">0</div>
+                            <small>Total</small>
+                        </div>
+                    </div>
+                    <div class="col-4">
+                        <div class="stats-card">
+                            <div class="h4 mb-1" id="favoritePrompts">0</div>
+                            <small>Favoris</small>
+                        </div>
+                    </div>
+                    <div class="col-4">
+                        <div class="stats-card">
+                            <div class="h4 mb-1" id="categoriesCount">0</div>
+                            <small>Catégories</small>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Barre d'outils -->
+    <div class="row mb-4">
+        <div class="col-md-8">
+            <div class="input-group">
+                <span class="input-group-text">
+                    <i class="fas fa-search"></i>
+                </span>
+                <input type="text" id="searchInput" class="form-control" placeholder="Rechercher un prompt...">
+                <select id="categoryFilter" class="form-select" style="max-width: 200px;">
+                    <option value="">Toutes les catégories</option>
+                </select>
+                <button class="btn btn-outline-primary" id="favoritesOnly" type="button">
+                    <i class="fas fa-star me-1"></i>Favoris
+                </button>
+            </div>
+        </div>
+        <div class="col-md-4 text-end">
+            <button class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#promptModal">
+                <i class="fas fa-plus me-2"></i>Nouveau Prompt
+            </button>
+        </div>
+    </div>
+
+    <!-- Liste des prompts -->
+    <div class="row" id="promptsContainer">
+        <!-- Les prompts seront chargés ici dynamiquement -->
+    </div>
+
+    <!-- Message si aucun prompt -->
+    <div id="noPromptsMessage" class="text-center py-5" style="display: none;">
+        <i class="fas fa-bookmark text-muted" style="font-size: 4rem;"></i>
+        <h3 class="text-muted mt-3">Aucun prompt sauvegardé</h3>
+        <p class="text-muted">Créez votre premier prompt pour commencer</p>
+        <button class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#promptModal">
+            <i class="fas fa-plus me-2"></i>Créer un prompt
+        </button>
+    </div>
+</div>
+
+<!-- Modal pour créer/éditer un prompt -->
+<div class="modal fade" id="promptModal" tabindex="-1">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="promptModalTitle">Nouveau Prompt</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <form id="promptForm">
+                    <input type="hidden" id="promptId">
+                    
+                    <div class="mb-3">
+                        <label for="promptTitle" class="form-label">Titre du prompt *</label>
+                        <input type="text" class="form-control" id="promptTitle" required>
+                    </div>
+                    
+                    <div class="row mb-3">
+                        <div class="col-md-8">
+                            <label for="promptCategory" class="form-label">Catégorie</label>
+                            <input type="text" class="form-control" id="promptCategory" placeholder="Ex: Marketing, Code, Créatif...">
+                        </div>
+                        <div class="col-md-4">
+                            <div class="form-check mt-4">
+                                <input class="form-check-input" type="checkbox" id="promptFavorite">
+                                <label class="form-check-label" for="promptFavorite">
+                                    <i class="fas fa-star text-warning me-1"></i>Marquer comme favori
+                                </label>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label for="promptText" class="form-label">Contenu du prompt *</label>
+                        <textarea class="form-control prompt-form-textarea" id="promptText" required 
+                                  placeholder="Entrez le contenu de votre prompt ici..."></textarea>
+                        <div class="form-text">
+                            <span id="promptCharCount">0</span> caractères
+                        </div>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Annuler</button>
+                <button type="button" class="btn btn-primary" id="savePromptBtn">
+                    <i class="fas fa-save me-2"></i>Sauvegarder
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+let prompts = [];
+let filteredPrompts = [];
+let editingPromptId = null;
+
+document.addEventListener('DOMContentLoaded', function() {
+    loadPrompts();
+    setupEventListeners();
+});
+
+function setupEventListeners() {
+    // Recherche et filtres
+    document.getElementById('searchInput').addEventListener('input', filterPrompts);
+    document.getElementById('categoryFilter').addEventListener('change', filterPrompts);
+    document.getElementById('favoritesOnly').addEventListener('click', toggleFavoritesFilter);
+    
+    // Modal
+    document.getElementById('savePromptBtn').addEventListener('click', savePrompt);
+    document.getElementById('promptText').addEventListener('input', updateCharCount);
+    
+    // Reset modal quand fermé
+    document.getElementById('promptModal').addEventListener('hidden.bs.modal', resetModal);
+}
+
+function loadPrompts() {
+    fetch('/api/prompts')
+        .then(response => response.json())
+        .then(data => {
+            if (data.status === 'success') {
+                prompts = data.prompts;
+                updateStats();
+                updateCategoryFilter();
+                filterPrompts();
+            } else {
+                showToast('Erreur lors du chargement des prompts', 'error');
+            }
+        })
+        .catch(error => {
+            console.error('Erreur:', error);
+            showToast('Erreur de connexion', 'error');
+        });
+}
+
+function updateStats() {
+    const totalPrompts = prompts.length;
+    const favoritePrompts = prompts.filter(p => p.is_favorite).length;
+    const categories = [...new Set(prompts.map(p => p.category).filter(c => c))];
+    
+    document.getElementById('totalPrompts').textContent = totalPrompts;
+    document.getElementById('favoritePrompts').textContent = favoritePrompts;
+    document.getElementById('categoriesCount').textContent = categories.length;
+}
+
+function updateCategoryFilter() {
+    const categories = [...new Set(prompts.map(p => p.category).filter(c => c))];
+    const select = document.getElementById('categoryFilter');
+    
+    // Garder l'option "Toutes les catégories"
+    select.innerHTML = '<option value="">Toutes les catégories</option>';
+    
+    categories.forEach(category => {
+        const option = document.createElement('option');
+        option.value = category;
+        option.textContent = category;
+        select.appendChild(option);
+    });
+}
+
+function filterPrompts() {
+    const searchTerm = document.getElementById('searchInput').value.toLowerCase();
+    const categoryFilter = document.getElementById('categoryFilter').value;
+    const favoritesOnly = document.getElementById('favoritesOnly').classList.contains('active');
+    
+    filteredPrompts = prompts.filter(prompt => {
+        const matchesSearch = prompt.title.toLowerCase().includes(searchTerm) || 
+                            prompt.prompt_text.toLowerCase().includes(searchTerm);
+        const matchesCategory = !categoryFilter || prompt.category === categoryFilter;
+        const matchesFavorite = !favoritesOnly || prompt.is_favorite;
+        
+        return matchesSearch && matchesCategory && matchesFavorite;
+    });
+    
+    renderPrompts();
+}
+
+function renderPrompts() {
+    const container = document.getElementById('promptsContainer');
+    const noPromptsMessage = document.getElementById('noPromptsMessage');
+    
+    if (filteredPrompts.length === 0) {
+        container.innerHTML = '';
+        noPromptsMessage.style.display = 'block';
+        return;
+    }
+    
+    noPromptsMessage.style.display = 'none';
+    
+    container.innerHTML = filteredPrompts.map(prompt => `
+        <div class="col-md-6 col-lg-4 mb-4">
+            <div class="card prompt-card h-100">
+                <div class="card-header d-flex justify-content-between align-items-start">
+                    <div class="flex-grow-1">
+                        <h6 class="card-title mb-1">${escapeHtml(prompt.title)}</h6>
+                        ${prompt.category ? `<span class="badge bg-secondary category-badge">${escapeHtml(prompt.category)}</span>` : ''}
+                    </div>
+                    <button class="favorite-btn ${prompt.is_favorite ? 'active' : ''}" 
+                            onclick="toggleFavorite('${prompt.id}')">
+                        <i class="fas fa-star"></i>
+                    </button>
+                </div>
+                
+                <div class="card-body">
+                    <div class="prompt-preview">
+                        ${escapeHtml(prompt.prompt_text.substring(0, 150))}${prompt.prompt_text.length > 150 ? '...' : ''}
+                    </div>
+                </div>
+                
+                <div class="card-footer">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <small class="text-muted">
+                            <i class="fas fa-clock me-1"></i>
+                            ${formatDate(prompt.created_at)}
+                        </small>
+                        <div class="prompt-actions">
+                            <button class="btn btn-sm btn-outline-primary me-1" 
+                                    onclick="usePrompt('${prompt.id}')">
+                                <i class="fas fa-play me-1"></i>Utiliser
+                            </button>
+                            <button class="btn btn-sm btn-outline-secondary me-1" 
+                                    onclick="editPrompt('${prompt.id}')">
+                                <i class="fas fa-edit"></i>
+                            </button>
+                            <button class="btn btn-sm btn-outline-danger" 
+                                    onclick="deletePrompt('${prompt.id}')">
+                                <i class="fas fa-trash"></i>
+                            </button>
+                        </div>
+                    </div>
+                    ${prompt.usage_count > 0 ? `
+                        <small class="text-muted mt-1 d-block">
+                            <i class="fas fa-chart-line me-1"></i>
+                            Utilisé ${prompt.usage_count} fois
+                        </small>
+                    ` : ''}
+                </div>
+            </div>
+        </div>
+    `).join('');
+}
+
+function usePrompt(promptId) {
+    const prompt = prompts.find(p => p.id === promptId);
+    if (prompt) {
+        // Incrémenter le compteur d'utilisation
+        fetch(`/api/prompts/${promptId}/use`, {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'}
+        });
+        
+        // Rediriger vers le générateur avec le prompt
+        const encodedPrompt = encodeURIComponent(prompt.prompt_text);
+        window.location.href = `/generator?prompt=${encodedPrompt}`;
+    }
+}
+
+function editPrompt(promptId) {
+    const prompt = prompts.find(p => p.id === promptId);
+    if (prompt) {
+        editingPromptId = promptId;
+        document.getElementById('promptModalTitle').textContent = 'Modifier le Prompt';
+        document.getElementById('promptId').value = prompt.id;
+        document.getElementById('promptTitle').value = prompt.title;
+        document.getElementById('promptCategory').value = prompt.category || '';
+        document.getElementById('promptText').value = prompt.prompt_text;
+        document.getElementById('promptFavorite').checked = prompt.is_favorite;
+        updateCharCount();
+        
+        new bootstrap.Modal(document.getElementById('promptModal')).show();
+    }
+}
+
+function deletePrompt(promptId) {
+    const prompt = prompts.find(p => p.id === promptId);
+    if (prompt && confirm(`Êtes-vous sûr de vouloir supprimer le prompt "${prompt.title}" ?`)) {
+        fetch(`/api/prompts/${promptId}`, {
+            method: 'DELETE',
+            headers: {'Content-Type': 'application/json'}
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.status === 'success') {
+                showToast('Prompt supprimé avec succès', 'success');
+                loadPrompts();
+            } else {
+                showToast('Erreur lors de la suppression', 'error');
+            }
+        })
+        .catch(error => {
+            console.error('Erreur:', error);
+            showToast('Erreur de connexion', 'error');
+        });
+    }
+}
+
+function toggleFavorite(promptId) {
+    const prompt = prompts.find(p => p.id === promptId);
+    if (prompt) {
+        const newFavoriteStatus = !prompt.is_favorite;
+        
+        fetch(`/api/prompts/${promptId}/favorite`, {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({is_favorite: newFavoriteStatus})
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.status === 'success') {
+                prompt.is_favorite = newFavoriteStatus;
+                updateStats();
+                filterPrompts();
+                showToast(newFavoriteStatus ? 'Ajouté aux favoris' : 'Retiré des favoris', 'success');
+            } else {
+                showToast('Erreur lors de la mise à jour', 'error');
+            }
+        })
+        .catch(error => {
+            console.error('Erreur:', error);
+            showToast('Erreur de connexion', 'error');
+        });
+    }
+}
+
+function toggleFavoritesFilter() {
+    const btn = document.getElementById('favoritesOnly');
+    btn.classList.toggle('active');
+    btn.classList.toggle('btn-outline-primary');
+    btn.classList.toggle('btn-warning');
+    filterPrompts();
+}
+
+function savePrompt() {
+    const title = document.getElementById('promptTitle').value.trim();
+    const category = document.getElementById('promptCategory').value.trim();
+    const promptText = document.getElementById('promptText').value.trim();
+    const isFavorite = document.getElementById('promptFavorite').checked;
+    
+    if (!title || !promptText) {
+        showToast('Veuillez remplir tous les champs obligatoires', 'error');
+        return;
+    }
+    
+    const promptData = {
+        title: title,
+        category: category || 'général',
+        prompt_text: promptText,
+        is_favorite: isFavorite
+    };
+    
+    const url = editingPromptId ? `/api/prompts/${editingPromptId}` : '/api/prompts';
+    const method = editingPromptId ? 'PUT' : 'POST';
+    
+    fetch(url, {
+        method: method,
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify(promptData)
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.status === 'success') {
+            showToast(editingPromptId ? 'Prompt modifié avec succès' : 'Prompt créé avec succès', 'success');
+            bootstrap.Modal.getInstance(document.getElementById('promptModal')).hide();
+            loadPrompts();
+        } else {
+            showToast('Erreur lors de la sauvegarde', 'error');
+        }
+    })
+    .catch(error => {
+        console.error('Erreur:', error);
+        showToast('Erreur de connexion', 'error');
+    });
+}
+
+function resetModal() {
+    editingPromptId = null;
+    document.getElementById('promptModalTitle').textContent = 'Nouveau Prompt';
+    document.getElementById('promptForm').reset();
+    document.getElementById('promptCharCount').textContent = '0';
+}
+
+function updateCharCount() {
+    const textarea = document.getElementById('promptText');
+    const count = textarea.value.length;
+    document.getElementById('promptCharCount').textContent = count;
+}
+
+function escapeHtml(text) {
+    const map = {
+        '&': '&amp;',
+        '<': '&lt;',
+        '>': '&gt;',
+        '"': '&quot;',
+        "'": '&#039;'
+    };
+    return text.replace(/[&<>"']/g, function(m) { return map[m]; });
+}
+
+function formatDate(dateString) {
+    const date = new Date(dateString);
+    return date.toLocaleDateString('fr-FR', {
+        day: '2-digit',
+        month: '2-digit',
+        year: 'numeric'
+    });
+}
+
+function showToast(message, type = 'info') {
+    // Utilise la fonction toast du dashboard principal
+    if (window.showToast) {
+        window.showToast(message, type);
+    } else {
+        alert(message);
+    }
+}
+</script>
+{% endblock %}

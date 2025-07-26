@@ -1,0 +1,648 @@
+{% extends "base.html" %}
+
+{% block title %}Gestion des Clés API - AI Playground{% endblock %}
+
+{% block extra_css %}
+<style>
+.api-key-card {
+    border: 1px solid var(--border-color);
+    border-radius: 12px;
+    transition: all 0.3s ease;
+    background: var(--card-bg);
+}
+
+.api-key-card:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 8px 25px rgba(0,0,0,0.1);
+}
+
+.provider-logo {
+    width: 40px;
+    height: 40px;
+    border-radius: 8px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 20px;
+    color: white;
+    margin-right: 15px;
+}
+
+.anthropic-logo { background: linear-gradient(135deg, #D2691E, #FF8C00); }
+.openai-logo { background: linear-gradient(135deg, #10A37F, #16A085); }
+.xai-logo { background: linear-gradient(135deg, #1DA1F2, #0D8BD9); }
+
+.key-status {
+    padding: 4px 12px;
+    border-radius: 20px;
+    font-size: 0.85em;
+    font-weight: 500;
+}
+
+.key-status.valid {
+    background-color: rgba(25, 135, 84, 0.1);
+    color: #198754;
+    border: 1px solid rgba(25, 135, 84, 0.2);
+}
+
+.key-status.invalid {
+    background-color: rgba(220, 53, 69, 0.1);
+    color: #dc3545;
+    border: 1px solid rgba(220, 53, 69, 0.2);
+}
+
+.key-status.unknown {
+    background-color: rgba(108, 117, 125, 0.1);
+    color: #6c757d;
+    border: 1px solid rgba(108, 117, 125, 0.2);
+}
+
+.key-input {
+    font-family: 'Courier New', monospace;
+    font-size: 0.9em;
+}
+
+.masked-key {
+    font-family: 'Courier New', monospace;
+    color: #6c757d;
+    background-color: #f8f9fa;
+    padding: 8px 12px;
+    border-radius: 6px;
+    border: 1px solid #dee2e6;
+}
+
+.key-actions {
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+}
+
+.security-note {
+    background: linear-gradient(135deg, #fff3cd, #ffeaa7);
+    border: 1px solid #ffc107;
+    border-radius: 8px;
+    padding: 15px;
+    margin-bottom: 20px;
+}
+
+.stats-card {
+    background: var(--card-bg);
+    border: 1px solid var(--border-color);
+    border-radius: 8px;
+    padding: 15px;
+    text-align: center;
+}
+
+.usage-bar {
+    height: 6px;
+    background-color: #e9ecef;
+    border-radius: 3px;
+    overflow: hidden;
+    margin-top: 8px;
+}
+
+.usage-fill {
+    height: 100%;
+    background: linear-gradient(90deg, #28a745, #20c997);
+    transition: width 0.3s ease;
+}
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid px-4">
+    <!-- Header -->
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <div>
+            <h1 class="h3 mb-0">
+                <i class="fas fa-key text-primary me-2"></i>
+                Gestion des Clés API
+            </h1>
+            <p class="text-muted mb-0">Configurez vos clés API pour les différents fournisseurs d'IA</p>
+        </div>
+        <button class="btn btn-outline-primary" onclick="testAllKeys()">
+            <i class="fas fa-check-circle me-1"></i>
+            Tester toutes les clés
+        </button>
+    </div>
+
+    <!-- Security Notice -->
+    <div class="security-note">
+        <div class="d-flex align-items-start">
+            <i class="fas fa-shield-alt text-warning me-2 mt-1"></i>
+            <div>
+                <strong>Note de sécurité :</strong>
+                <p class="mb-0 mt-1">
+                    Vos clés API sont stockées de manière sécurisée et chiffrées. Elles ne sont jamais affichées en clair après la saisie.
+                    Assurez-vous de ne jamais partager vos clés API avec d'autres personnes.
+                </p>
+            </div>
+        </div>
+    </div>
+
+    <!-- Statistics Row -->
+    <div class="row mb-4">
+        <div class="col-md-3">
+            <div class="stats-card">
+                <i class="fas fa-key text-primary mb-2" style="font-size: 1.5em;"></i>
+                <h6 class="mb-1">Clés configurées</h6>
+                <h4 class="mb-0" id="configuredKeys">{{ configured_keys_count }}/3</h4>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="stats-card">
+                <i class="fas fa-check-circle text-success mb-2" style="font-size: 1.5em;"></i>
+                <h6 class="mb-1">Clés valides</h6>
+                <h4 class="mb-0" id="validKeys">{{ valid_keys_count }}/{{ configured_keys_count }}</h4>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="stats-card">
+                <i class="fas fa-robot text-info mb-2" style="font-size: 1.5em;"></i>
+                <h6 class="mb-1">Modèles disponibles</h6>
+                <h4 class="mb-0" id="availableModels">{{ available_models_count }}</h4>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="stats-card">
+                <i class="fas fa-chart-line text-warning mb-2" style="font-size: 1.5em;"></i>
+                <h6 class="mb-1">Utilisation ce mois</h6>
+                <h4 class="mb-0" id="monthlyUsage">${{ monthly_cost|round(2) }}</h4>
+            </div>
+        </div>
+    </div>
+
+    <!-- API Keys Cards -->
+    <div class="row">
+        <!-- Anthropic Claude -->
+        <div class="col-lg-4 mb-4">
+            <div class="api-key-card card h-100" data-provider="anthropic">
+                <div class="card-body">
+                    <div class="d-flex align-items-center mb-3">
+                        <div class="provider-logo anthropic-logo">
+                            <i class="fas fa-brain"></i>
+                        </div>
+                        <div>
+                            <h5 class="mb-0">Anthropic Claude</h5>
+                            <small class="text-muted">Claude Sonnet 4, Opus 4, 3.7 Sonnet</small>
+                        </div>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <span class="key-status {{ 'valid' if anthropic_key_valid else 'invalid' if anthropic_key_configured else 'unknown' }}">
+                            {% if anthropic_key_valid %}
+                                <i class="fas fa-check-circle me-1"></i>Clé valide
+                            {% elif anthropic_key_configured %}
+                                <i class="fas fa-exclamation-triangle me-1"></i>Clé invalide
+                            {% else %}
+                                <i class="fas fa-question-circle me-1"></i>Non configurée
+                            {% endif %}
+                        </span>
+                    </div>
+                    
+                    <div class="mb-3">
+                        {% if anthropic_key_configured %}
+                            <div class="masked-key">
+                                <i class="fas fa-key me-2"></i>
+                                ••••••••••••••••••••••••{{ anthropic_key_suffix }}
+                            </div>
+                        {% else %}
+                            <p class="text-muted mb-0">Aucune clé configurée</p>
+                        {% endif %}
+                    </div>
+                    
+                    <div class="key-actions">
+                        <button class="btn btn-sm btn-primary" onclick="editApiKey('anthropic')">
+                            <i class="fas fa-edit me-1"></i>
+                            {{ 'Modifier' if anthropic_key_configured else 'Configurer' }}
+                        </button>
+                        {% if anthropic_key_configured %}
+                        <button class="btn btn-sm btn-outline-success" onclick="testApiKey('anthropic')">
+                            <i class="fas fa-test-tube me-1"></i>Tester
+                        </button>
+                        <button class="btn btn-sm btn-outline-danger" onclick="removeApiKey('anthropic')">
+                            <i class="fas fa-trash me-1"></i>Supprimer
+                        </button>
+                        {% endif %}
+                    </div>
+                    
+                    {% if anthropic_key_valid %}
+                    <div class="mt-3">
+                        <small class="text-muted">Quota utilisé ce mois :</small>
+                        <div class="usage-bar">
+                            <div class="usage-fill" style="width: {{ anthropic_usage_percent }}%"></div>
+                        </div>
+                        <small class="text-muted">${{ anthropic_usage_cost|round(2) }} / ${{ anthropic_quota_limit }}</small>
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+
+        <!-- OpenAI -->
+        <div class="col-lg-4 mb-4">
+            <div class="api-key-card card h-100" data-provider="openai">
+                <div class="card-body">
+                    <div class="d-flex align-items-center mb-3">
+                        <div class="provider-logo openai-logo">
+                            <i class="fas fa-robot"></i>
+                        </div>
+                        <div>
+                            <h5 class="mb-0">OpenAI</h5>
+                            <small class="text-muted">GPT-4o, GPT-4.1, GPT-4o Mini</small>
+                        </div>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <span class="key-status {{ 'valid' if openai_key_valid else 'invalid' if openai_key_configured else 'unknown' }}">
+                            {% if openai_key_valid %}
+                                <i class="fas fa-check-circle me-1"></i>Clé valide
+                            {% elif openai_key_configured %}
+                                <i class="fas fa-exclamation-triangle me-1"></i>Clé invalide
+                            {% else %}
+                                <i class="fas fa-question-circle me-1"></i>Non configurée
+                            {% endif %}
+                        </span>
+                    </div>
+                    
+                    <div class="mb-3">
+                        {% if openai_key_configured %}
+                            <div class="masked-key">
+                                <i class="fas fa-key me-2"></i>
+                                ••••••••••••••••••••••••{{ openai_key_suffix }}
+                            </div>
+                        {% else %}
+                            <p class="text-muted mb-0">Aucune clé configurée</p>
+                        {% endif %}
+                    </div>
+                    
+                    <div class="key-actions">
+                        <button class="btn btn-sm btn-primary" onclick="editApiKey('openai')">
+                            <i class="fas fa-edit me-1"></i>
+                            {{ 'Modifier' if openai_key_configured else 'Configurer' }}
+                        </button>
+                        {% if openai_key_configured %}
+                        <button class="btn btn-sm btn-outline-success" onclick="testApiKey('openai')">
+                            <i class="fas fa-test-tube me-1"></i>Tester
+                        </button>
+                        <button class="btn btn-sm btn-outline-danger" onclick="removeApiKey('openai')">
+                            <i class="fas fa-trash me-1"></i>Supprimer
+                        </button>
+                        {% endif %}
+                    </div>
+                    
+                    {% if openai_key_valid %}
+                    <div class="mt-3">
+                        <small class="text-muted">Quota utilisé ce mois :</small>
+                        <div class="usage-bar">
+                            <div class="usage-fill" style="width: {{ openai_usage_percent }}%"></div>
+                        </div>
+                        <small class="text-muted">${{ openai_usage_cost|round(2) }} / ${{ openai_quota_limit }}</small>
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+
+        <!-- xAI Grok -->
+        <div class="col-lg-4 mb-4">
+            <div class="api-key-card card h-100" data-provider="xai">
+                <div class="card-body">
+                    <div class="d-flex align-items-center mb-3">
+                        <div class="provider-logo xai-logo">
+                            <i class="fab fa-x-twitter"></i>
+                        </div>
+                        <div>
+                            <h5 class="mb-0">xAI Grok</h5>
+                            <small class="text-muted">Grok-4, Grok-3</small>
+                        </div>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <span class="key-status {{ 'valid' if xai_key_valid else 'invalid' if xai_key_configured else 'unknown' }}">
+                            {% if xai_key_valid %}
+                                <i class="fas fa-check-circle me-1"></i>Clé valide
+                            {% elif xai_key_configured %}
+                                <i class="fas fa-exclamation-triangle me-1"></i>Clé invalide
+                            {% else %}
+                                <i class="fas fa-question-circle me-1"></i>Non configurée
+                            {% endif %}
+                        </span>
+                    </div>
+                    
+                    <div class="mb-3">
+                        {% if xai_key_configured %}
+                            <div class="masked-key">
+                                <i class="fas fa-key me-2"></i>
+                                ••••••••••••••••••••••••{{ xai_key_suffix }}
+                            </div>
+                        {% else %}
+                            <p class="text-muted mb-0">Aucune clé configurée</p>
+                        {% endif %}
+                    </div>
+                    
+                    <div class="key-actions">
+                        <button class="btn btn-sm btn-primary" onclick="editApiKey('xai')">
+                            <i class="fas fa-edit me-1"></i>
+                            {{ 'Modifier' if xai_key_configured else 'Configurer' }}
+                        </button>
+                        {% if xai_key_configured %}
+                        <button class="btn btn-sm btn-outline-success" onclick="testApiKey('xai')">
+                            <i class="fas fa-test-tube me-1"></i>Tester
+                        </button>
+                        <button class="btn btn-sm btn-outline-danger" onclick="removeApiKey('xai')">
+                            <i class="fas fa-trash me-1"></i>Supprimer
+                        </button>
+                        {% endif %}
+                    </div>
+                    
+                    {% if xai_key_valid %}
+                    <div class="mt-3">
+                        <small class="text-muted">Quota utilisé ce mois :</small>
+                        <div class="usage-bar">
+                            <div class="usage-fill" style="width: {{ xai_usage_percent }}%"></div>
+                        </div>
+                        <small class="text-muted">${{ xai_usage_cost|round(2) }} / ${{ xai_quota_limit }}</small>
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Help Section -->
+    <div class="row mt-4">
+        <div class="col-12">
+            <div class="card">
+                <div class="card-header">
+                    <h5 class="mb-0">
+                        <i class="fas fa-question-circle me-2"></i>
+                        Comment obtenir vos clés API ?
+                    </h5>
+                </div>
+                <div class="card-body">
+                    <div class="row">
+                        <div class="col-md-4">
+                            <h6><i class="fas fa-brain text-warning me-2"></i>Anthropic Claude</h6>
+                            <p class="text-muted">
+                                1. Rendez-vous sur <a href="https://console.anthropic.com/" target="_blank">console.anthropic.com</a><br>
+                                2. Créez un compte ou connectez-vous<br>
+                                3. Allez dans "API Keys" et créez une nouvelle clé<br>
+                                4. Copiez la clé commençant par "sk-ant-"
+                            </p>
+                        </div>
+                        <div class="col-md-4">
+                            <h6><i class="fas fa-robot text-success me-2"></i>OpenAI</h6>
+                            <p class="text-muted">
+                                1. Visitez <a href="https://platform.openai.com/" target="_blank">platform.openai.com</a><br>
+                                2. Connectez-vous à votre compte<br>
+                                3. Naviguez vers "API Keys"<br>
+                                4. Créez une nouvelle clé secrète<br>
+                                5. Copiez la clé commençant par "sk-"
+                            </p>
+                        </div>
+                        <div class="col-md-4">
+                            <h6><i class="fab fa-x-twitter text-info me-2"></i>xAI Grok</h6>
+                            <p class="text-muted">
+                                1. Allez sur <a href="https://console.x.ai/" target="_blank">console.x.ai</a><br>
+                                2. Créez un compte xAI<br>
+                                3. Accédez à la section "API Keys"<br>
+                                4. Générez une nouvelle clé API<br>
+                                5. Copiez la clé fournie
+                            </p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Modal pour édition de clé API -->
+<div class="modal fade" id="editKeyModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">
+                    <i class="fas fa-edit me-2"></i>
+                    <span id="modalTitle">Configurer la clé API</span>
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <div class="mb-3">
+                    <label for="apiKeyInput" class="form-label">Clé API</label>
+                    <input type="password" class="form-control key-input" id="apiKeyInput" 
+                           placeholder="Collez votre clé API ici...">
+                    <div class="form-text">
+                        <i class="fas fa-eye-slash me-1"></i>
+                        La clé sera masquée après la saisie pour votre sécurité
+                    </div>
+                </div>
+                
+                <div class="alert alert-info">
+                    <i class="fas fa-info-circle me-2"></i>
+                    <strong>Format attendu :</strong>
+                    <ul class="mb-0 mt-2">
+                        <li><strong>Anthropic :</strong> sk-ant-api03-...</li>
+                        <li><strong>OpenAI :</strong> sk-...</li>
+                        <li><strong>xAI :</strong> xai-...</li>
+                    </ul>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Annuler</button>
+                <button type="button" class="btn btn-primary" onclick="saveApiKey()">
+                    <i class="fas fa-save me-1"></i>Sauvegarder
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+let currentProvider = '';
+
+function editApiKey(provider) {
+    currentProvider = provider;
+    const providerNames = {
+        'anthropic': 'Anthropic Claude',
+        'openai': 'OpenAI',
+        'xai': 'xAI Grok'
+    };
+    
+    document.getElementById('modalTitle').textContent = `Configurer ${providerNames[provider]}`;
+    document.getElementById('apiKeyInput').value = '';
+    
+    const modal = new bootstrap.Modal(document.getElementById('editKeyModal'));
+    modal.show();
+}
+
+async function saveApiKey() {
+    const apiKey = document.getElementById('apiKeyInput').value.trim();
+    
+    if (!apiKey) {
+        showToast('Veuillez saisir une clé API', 'error');
+        return;
+    }
+    
+    try {
+        const response = await fetch('/api/api-keys', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+                provider: currentProvider,
+                api_key: apiKey
+            })
+        });
+        
+        const data = await response.json();
+        
+        if (response.ok) {
+            showToast(`Clé ${currentProvider} sauvegardée avec succès`, 'success');
+            bootstrap.Modal.getInstance(document.getElementById('editKeyModal')).hide();
+            
+            // Mettre à jour l'affichage et tester la clé
+            setTimeout(async () => {
+                location.reload();
+            }, 1000);
+        } else {
+            showToast(`Erreur: ${data.error}`, 'error');
+        }
+    } catch (error) {
+        console.error('Erreur sauvegarde:', error);
+        showToast('Erreur lors de la sauvegarde', 'error');
+    }
+}
+
+// Fonction pour vérifier automatiquement le statut de toutes les clés
+async function checkAllKeysStatus() {
+    const providers = ['anthropic', 'openai', 'xai'];
+    let validCount = 0;
+    let configuredCount = 0;
+    
+    // Compter les clés configurées
+    providers.forEach(provider => {
+        const card = document.querySelector(`[data-provider="${provider}"]`);
+        const suffix = card?.querySelector('.masked-key');
+        if (suffix && !suffix.textContent.includes('Aucune clé')) {
+            configuredCount++;
+        }
+    });
+    
+    // Tester chaque clé configurée
+    for (const provider of providers) {
+        const card = document.querySelector(`[data-provider="${provider}"]`);
+        const suffix = card?.querySelector('.masked-key');
+        
+        if (suffix && !suffix.textContent.includes('Aucune clé')) {
+            try {
+                const response = await fetch(`/api/api-keys/${provider}/test`, {
+                    method: 'POST'
+                });
+                const data = await response.json();
+                
+                // Mettre à jour le statut visuel
+                const statusElement = card?.querySelector('.key-status');
+                if (statusElement) {
+                    if (data.valid) {
+                        statusElement.className = 'key-status valid';
+                        statusElement.innerHTML = '<i class="fas fa-check-circle me-1"></i>Clé valide';
+                        validCount++;
+                    } else {
+                        statusElement.className = 'key-status invalid';
+                        statusElement.innerHTML = '<i class="fas fa-exclamation-triangle me-1"></i>Clé invalide';
+                    }
+                }
+            } catch (error) {
+                console.error(`Erreur test ${provider}:`, error);
+            }
+        }
+    }
+    
+    // Mettre à jour les statistiques
+    const configuredElement = document.getElementById('configuredKeys');
+    const validElement = document.getElementById('validKeys');
+    
+    if (configuredElement) configuredElement.textContent = `${configuredCount}/3`;
+    if (validElement) validElement.textContent = `${validCount}/${configuredCount}`;
+}
+
+// Initialisation de la page
+document.addEventListener('DOMContentLoaded', function() {
+    if (window.location.pathname === '/api-keys') {
+        // Vérifier le statut des clés après un délai court
+        setTimeout(checkAllKeysStatus, 500);
+    }
+});
+
+async function testApiKey(provider) {
+    try {
+        showToast(`Test de la clé ${provider} en cours...`, 'info');
+        
+        const response = await fetch(`/api/api-keys/${provider}/test`, {
+            method: 'POST'
+        });
+        
+        const data = await response.json();
+        
+        if (data.valid) {
+            showToast(`Clé ${provider} valide !`, 'success');
+        } else {
+            showToast(`Clé ${provider} invalide: ${data.error}`, 'error');
+        }
+    } catch (error) {
+        console.error('Erreur test:', error);
+        showToast('Erreur lors du test', 'error');
+    }
+}
+
+async function removeApiKey(provider) {
+    if (!confirm(`Êtes-vous sûr de vouloir supprimer la clé ${provider} ?`)) {
+        return;
+    }
+    
+    try {
+        const response = await fetch(`/api/api-keys/${provider}`, {
+            method: 'DELETE'
+        });
+        
+        const data = await response.json();
+        
+        if (response.ok) {
+            showToast(`Clé ${provider} supprimée`, 'success');
+            setTimeout(() => location.reload(), 1000);
+        } else {
+            showToast(`Erreur: ${data.error}`, 'error');
+        }
+    } catch (error) {
+        console.error('Erreur suppression:', error);
+        showToast('Erreur lors de la suppression', 'error');
+    }
+}
+
+async function testAllKeys() {
+    const providers = ['anthropic', 'openai', 'xai'];
+    let validCount = 0;
+    
+    showToast('Test de toutes les clés en cours...', 'info');
+    
+    for (const provider of providers) {
+        try {
+            const response = await fetch(`/api/api-keys/${provider}/test`, {
+                method: 'POST'
+            });
+            
+            const data = await response.json();
+            if (data.valid) validCount++;
+        } catch (error) {
+            console.error(`Erreur test ${provider}:`, error);
+        }
+    }
+    
+    showToast(`${validCount}/${providers.length} clés valides`, validCount === providers.length ? 'success' : 'warning');
+}
+</script>
+{% endblock %}

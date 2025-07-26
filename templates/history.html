@@ -1,0 +1,500 @@
+{% extends "base.html" %}
+
+{% block title %}Historique - AI Playground{% endblock %}
+
+{% block content %}
+<div class="container-fluid py-4">
+    <!-- Header -->
+    <div class="row mb-4">
+        <div class="col-12">
+            <div class="dashboard-header">
+                <h1 class="dashboard-title">
+                    <i class="fas fa-history me-3"></i>Historique des générations
+                </h1>
+                <p class="dashboard-subtitle">
+                    Explorez et gérez vos générations précédentes
+                </p>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Search and Filters -->
+    <div class="row mb-4">
+        <div class="col-12">
+            <div class="card">
+                <div class="card-body">
+                    <div class="row align-items-center">
+                        <div class="col-md-6">
+                            <div class="input-group">
+                                <span class="input-group-text">
+                                    <i class="fas fa-search"></i>
+                                </span>
+                                <input type="text" class="form-control" id="searchInput" 
+                                       placeholder="Rechercher dans les prompts et réponses...">
+                            </div>
+                        </div>
+                        <div class="col-md-3">
+                            <select class="form-select" id="statusFilter">
+                                <option value="">Tous les statuts</option>
+                                <option value="completed">Complétées</option>
+                                <option value="error">Erreurs</option>
+                            </select>
+                        </div>
+                        <div class="col-md-3">
+                            <div class="d-grid">
+                                <button class="btn btn-outline-secondary" onclick="clearFilters()">
+                                    <i class="fas fa-times me-1"></i>Effacer filtres
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- History Results -->
+    <div class="row">
+        <div class="col-12">
+            {% if history %}
+                <div class="history-grid" id="historyGrid">
+                    {% for item in history %}
+                    <div class="history-card" data-status="{{ item.status }}" 
+                         data-prompt="{{ item.prompt|lower }}" data-response="{{ item.response|lower }}"
+                         data-generation-id="{{ item.id }}">
+                        <div class="card h-100">
+                            <div class="card-header d-flex justify-content-between align-items-start">
+                                <div class="history-status">
+                                    {% if item.status == 'completed' %}
+                                        <span class="badge bg-success">
+                                            <i class="fas fa-check-circle me-1"></i>Complétée
+                                        </span>
+                                    {% else %}
+                                        <span class="badge bg-danger">
+                                            <i class="fas fa-exclamation-triangle me-1"></i>Erreur
+                                        </span>
+                                    {% endif %}
+                                </div>
+                                <div class="history-actions dropdown">
+                                    <button class="btn btn-sm btn-outline-secondary dropdown-toggle" 
+                                            data-bs-toggle="dropdown">
+                                        <i class="fas fa-ellipsis-v"></i>
+                                    </button>
+                                    <ul class="dropdown-menu dropdown-menu-end">
+                                        <li>
+                                            <a class="dropdown-item" href="#" 
+                                               onclick="viewGeneration('{{ item.id }}')">
+                                                <i class="fas fa-eye me-2"></i>Voir détails
+                                            </a>
+                                        </li>
+                                        <li>
+                                            <a class="dropdown-item" href="#" 
+                                               onclick="copyGeneration('{{ item.id }}')">
+                                                <i class="fas fa-copy me-2"></i>Copier
+                                            </a>
+                                        </li>
+                                        <li class="dropdown-submenu">
+                                            <a class="dropdown-item dropdown-toggle" href="#" id="exportDropdown{{ item.id }}">
+                                                <i class="fas fa-download me-2"></i>Exporter
+                                            </a>
+                                            <ul class="dropdown-menu">
+                                                <li><a class="dropdown-item" href="#" onclick="exportGeneration('{{ item.id }}', 'txt')">
+                                                    <i class="fas fa-file-alt me-2"></i>TXT
+                                                </a></li>
+                                                <li><a class="dropdown-item" href="#" onclick="exportGeneration('{{ item.id }}', 'md')">
+                                                    <i class="fab fa-markdown me-2"></i>Markdown
+                                                </a></li>
+                                                <li><a class="dropdown-item" href="#" onclick="exportGeneration('{{ item.id }}', 'html')">
+                                                    <i class="fab fa-html5 me-2"></i>HTML
+                                                </a></li>
+                                                <li><a class="dropdown-item" href="#" onclick="exportGeneration('{{ item.id }}', 'json')">
+                                                    <i class="fas fa-code me-2"></i>JSON
+                                                </a></li>
+                                                <li><a class="dropdown-item" href="#" onclick="exportGeneration('{{ item.id }}', 'pdf')">
+                                                    <i class="fas fa-file-pdf me-2"></i>PDF
+                                                </a></li>
+                                                <li><a class="dropdown-item" href="/api/generation/{{ item.id }}/export/pdf" target="_blank" download="generation_{{ item.id[:8] }}.pdf">
+                                                    <i class="fas fa-external-link-alt me-2"></i>PDF (lien direct)
+                                                </a></li>
+                                            </ul>
+                                        </li>
+                                        <li class="dropdown-submenu">
+                                            <a class="dropdown-item dropdown-toggle" href="#" id="shareDropdown{{ item.id }}">
+                                                <i class="fas fa-share-alt me-2"></i>Partager
+                                            </a>
+                                            <ul class="dropdown-menu">
+                                                <li><a class="dropdown-item" href="#" onclick="shareGeneration('{{ item.id }}')">
+                                                    <i class="fas fa-link me-2"></i>Créer lien partageable
+                                                </a></li>
+                                                <li><a class="dropdown-item" href="#" onclick="copyGenerationToClipboard('{{ item.id }}')">
+                                                    <i class="fas fa-clipboard me-2"></i>Copier le contenu
+                                                </a></li>
+                                            </ul>
+                                        </li>
+                                        <li><hr class="dropdown-divider"></li>
+                                        <li>
+                                            <a class="dropdown-item" href="#" 
+                                               onclick="openPlayground('{{ item.id }}')">
+                                                <i class="fas fa-code me-2"></i>Playground
+                                            </a>
+                                        </li>
+                                        <li>
+                                            <a class="dropdown-item" href="#" 
+                                               onclick="retryGeneration('{{ item.prompt|e }}')">
+                                                <i class="fas fa-redo me-2"></i>Régénérer
+                                            </a>
+                                        </li>
+                                        <li>
+                                            <a class="dropdown-item" href="#" 
+                                               onclick="continueConversation('{{ item.id }}')">
+                                                <i class="fas fa-arrow-right me-2"></i>Continuer conversation
+                                            </a>
+                                        </li>
+                                        <li><hr class="dropdown-divider"></li>
+                                        <li>
+                                            <a class="dropdown-item text-danger" href="#" 
+                                               onclick="deleteGeneration('{{ item.id }}')">
+                                                <i class="fas fa-trash me-2"></i>Supprimer
+                                            </a>
+                                        </li>
+                                    </ul>
+                                </div>
+                            </div>
+                            
+                            <div class="card-body">
+                                <div class="history-content">
+                                    <h6 class="history-prompt">{{ item.prompt }}</h6>
+                                    
+                                    {% if item.status == 'completed' %}
+                                        <div class="history-response">
+                                            {{ item.response.strip() }}
+                                        </div>
+                                        
+                                        <div class="history-meta mt-3">
+                                            <div class="row">
+                                                <div class="col-6">
+                                                    <small class="text-muted">
+                                                        <i class="fas fa-coins me-1"></i>
+                                                        {{ item.token_count }} tokens
+                                                    </small>
+                                                </div>
+                                                <div class="col-6">
+                                                    <small class="text-muted">
+                                                        <i class="fas fa-robot me-1"></i>
+                                                        {{ item.model_used or 'Claude Sonnet 4' }}
+                                                    </small>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    {% else %}
+                                        <div class="history-error">
+                                            <div class="alert alert-danger mb-0">
+                                                <i class="fas fa-exclamation-triangle me-2"></i>
+                                                {{ item.error_message or 'Erreur inconnue' }}
+                                            </div>
+                                        </div>
+                                    {% endif %}
+                                </div>
+                            </div>
+                            
+                            <div class="card-footer">
+                                <div class="d-flex justify-content-between align-items-center">
+                                    <small class="text-muted">
+                                        <i class="fas fa-clock me-1"></i>
+                                        {{ item.completed_at or item.timestamp }}
+                                    </small>
+                                    
+                                    <div class="history-quick-actions">
+                                        <button class="btn btn-sm btn-outline-primary" 
+                                                onclick="viewGeneration('{{ item.id }}')">
+                                            <i class="fas fa-eye"></i>
+                                        </button>
+                                        <button class="btn btn-sm btn-outline-success" 
+                                                onclick="copyGeneration('{{ item.id }}')">
+                                            <i class="fas fa-copy"></i>
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    {% endfor %}
+                </div>
+                
+                <!-- Pagination -->
+                {% if total > per_page %}
+                <div class="row mt-4">
+                    <div class="col-12">
+                        <nav aria-label="Pagination historique">
+                            <ul class="pagination justify-content-center">
+                                {% if has_prev %}
+                                    <li class="page-item">
+                                        <a class="page-link" href="?page={{ page - 1 }}&per_page={{ per_page }}">
+                                            <i class="fas fa-chevron-left"></i> Précédent
+                                        </a>
+                                    </li>
+                                {% endif %}
+                                
+                                <li class="page-item active">
+                                    <span class="page-link">
+                                        Page {{ page }} sur {{ ((total - 1) // per_page) + 1 }}
+                                    </span>
+                                </li>
+                                
+                                {% if has_next %}
+                                    <li class="page-item">
+                                        <a class="page-link" href="?page={{ page + 1 }}&per_page={{ per_page }}">
+                                            Suivant <i class="fas fa-chevron-right"></i>
+                                        </a>
+                                    </li>
+                                {% endif %}
+                            </ul>
+                        </nav>
+                    </div>
+                </div>
+                {% endif %}
+                
+            {% else %}
+                <!-- Empty State -->
+                <div class="text-center py-5">
+                    <div class="empty-state-large">
+                        <i class="fas fa-history text-muted"></i>
+                        <h3 class="mt-3">Aucun historique</h3>
+                        <p class="text-muted">Vous n'avez pas encore créé de générations.</p>
+                        <a href="{{ url_for('generator') }}" class="btn btn-primary">
+                            <i class="fas fa-magic me-2"></i>Créer votre première génération
+                        </a>
+                    </div>
+                </div>
+            {% endif %}
+        </div>
+    </div>
+</div>
+
+<!-- Modal pour voir les détails -->
+<div class="modal fade" id="generationModal" tabindex="-1">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">
+                    <i class="fas fa-file-text me-2"></i>Détails de la génération
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <div id="modalContent">
+                    <!-- Contenu chargé dynamiquement -->
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-outline-primary" onclick="copyModalContent()">
+                    <i class="fas fa-copy me-1"></i>Copier
+                </button>
+                <button type="button" class="btn btn-outline-success" onclick="downloadModalContent()">
+                    <i class="fas fa-download me-1"></i>Télécharger
+                </button>
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
+                    Fermer
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+let currentModalGeneration = null;
+
+document.addEventListener('DOMContentLoaded', function() {
+    const searchInput = document.getElementById('searchInput');
+    const statusFilter = document.getElementById('statusFilter');
+    
+    // Recherche en temps réel
+    searchInput.addEventListener('input', filterHistory);
+    statusFilter.addEventListener('change', filterHistory);
+});
+
+function filterHistory() {
+    const searchTerm = document.getElementById('searchInput').value.toLowerCase();
+    const statusFilter = document.getElementById('statusFilter').value;
+    const cards = document.querySelectorAll('.history-card');
+    
+    cards.forEach(card => {
+        const prompt = card.dataset.prompt;
+        const response = card.dataset.response;
+        const status = card.dataset.status;
+        
+        const matchesSearch = !searchTerm || 
+                            prompt.includes(searchTerm) || 
+                            response.includes(searchTerm);
+        
+        const matchesStatus = !statusFilter || status === statusFilter;
+        
+        if (matchesSearch && matchesStatus) {
+            card.style.display = 'block';
+        } else {
+            card.style.display = 'none';
+        }
+    });
+}
+
+function clearFilters() {
+    document.getElementById('searchInput').value = '';
+    document.getElementById('statusFilter').value = '';
+    filterHistory();
+}
+
+function viewGeneration(generationId) {
+    showLoading();
+    
+    fetch(`/api/generation/${generationId}`)
+        .then(response => response.json())
+        .then(data => {
+            if (data.error) {
+                throw new Error(data.error);
+            }
+            
+            currentModalGeneration = data;
+            
+            const modalContent = document.getElementById('modalContent');
+            modalContent.innerHTML = `
+                <div class="generation-details">
+                    <div class="mb-4">
+                        <h6 class="fw-bold">Prompt:</h6>
+                        <div class="p-3 bg-light rounded">
+                            ${data.prompt.replace(/\n/g, '<br>')}
+                        </div>
+                    </div>
+                    
+                    ${data.status === 'completed' ? `
+                        <div class="mb-4">
+                            <h6 class="fw-bold">Réponse:</h6>
+                            <div class="p-3 bg-light rounded">
+                                ${data.response.replace(/\n/g, '<br>')}
+                            </div>
+                        </div>
+                        
+                        <div class="row">
+                            <div class="col-md-4">
+                                <strong>Tokens:</strong> ${data.token_count || '-'}
+                            </div>
+                            <div class="col-md-4">
+                                <strong>Modèle:</strong> ${data.model_used || 'Claude Sonnet 4'}
+                            </div>
+                            <div class="col-md-4">
+                                <strong>Terminé:</strong> ${data.completed_at || '-'}
+                            </div>
+                        </div>
+                    ` : `
+                        <div class="alert alert-danger">
+                            <strong>Erreur:</strong> ${data.error_message || 'Erreur inconnue'}
+                        </div>
+                    `}
+                </div>
+            `;
+            
+            const modal = new bootstrap.Modal(document.getElementById('generationModal'));
+            modal.show();
+        })
+        .catch(error => {
+            console.error('Erreur:', error);
+            showToast('Erreur lors du chargement des détails', 'error');
+        })
+        .finally(() => {
+            hideLoading();
+        });
+}
+
+function copyGeneration(generationId) {
+    fetch(`/api/generation/${generationId}`)
+        .then(response => response.json())
+        .then(data => {
+            const text = data.status === 'completed' ? data.response : data.prompt;
+            navigator.clipboard.writeText(text).then(() => {
+                showToast('Contenu copié', 'success');
+            });
+        })
+        .catch(error => {
+            console.error('Erreur:', error);
+            showToast('Erreur lors de la copie', 'error');
+        });
+}
+
+function downloadGeneration(generationId) {
+    fetch(`/api/generation/${generationId}`)
+        .then(response => response.json())
+        .then(data => {
+            const content = `Prompt: ${data.prompt}\n\n---\n\nRéponse:\n${data.response || 'Erreur: ' + (data.error_message || 'Inconnue')}`;
+            const blob = new Blob([content], { type: 'text/plain;charset=utf-8' });
+            const url = window.URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `claude_generation_${generationId}.txt`;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            window.URL.revokeObjectURL(url);
+            
+            showToast('Fichier téléchargé', 'success');
+        })
+        .catch(error => {
+            console.error('Erreur:', error);
+            showToast('Erreur lors du téléchargement', 'error');
+        });
+}
+
+function retryGeneration(prompt) {
+    // Rediriger vers le générateur avec le prompt pré-rempli
+    sessionStorage.setItem('retryPrompt', prompt);
+    window.location.href = '/generator';
+}
+
+function openPlayground(generationId) {
+    window.location.href = `/playground/${generationId}`;
+}
+
+function copyModalContent() {
+    if (currentModalGeneration) {
+        const text = currentModalGeneration.status === 'completed' ? 
+                    currentModalGeneration.response : 
+                    currentModalGeneration.prompt;
+        
+        navigator.clipboard.writeText(text).then(() => {
+            showToast('Contenu copié', 'success');
+        });
+    }
+}
+
+function downloadModalContent() {
+    if (currentModalGeneration) {
+        const data = currentModalGeneration;
+        const content = `Prompt: ${data.prompt}\n\n---\n\nRéponse:\n${data.response || 'Erreur: ' + (data.error_message || 'Inconnue')}`;
+        const blob = new Blob([content], { type: 'text/plain;charset=utf-8' });
+        const url = window.URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `claude_generation_${data.id}.txt`;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        window.URL.revokeObjectURL(url);
+        
+        showToast('Fichier téléchargé', 'success');
+    }
+}
+
+// Animation d'entrée pour les cartes
+document.addEventListener('DOMContentLoaded', function() {
+    const cards = document.querySelectorAll('.history-card');
+    cards.forEach((card, index) => {
+        setTimeout(() => {
+            card.classList.add('card-animate');
+        }, index * 50);
+    });
+});
+
+function continueConversation(generationId) {
+    // Rediriger vers le générateur en mode continuation
+    window.location.href = `/generator?continue=${generationId}`;
+}
+</script>
+{% endblock %}

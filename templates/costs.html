@@ -1,0 +1,541 @@
+{% extends "base.html" %}
+
+{% block title %}Gestion des Coûts - AI Playground{% endblock %}
+
+{% block extra_head %}
+<style>
+.cost-card {
+    transition: all 0.3s ease;
+    border: 1px solid rgba(var(--bs-primary-rgb), 0.2);
+}
+
+.cost-card:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 20px rgba(0,0,0,0.1);
+}
+
+.cost-summary {
+    background: linear-gradient(135deg, var(--bs-primary), var(--bs-info));
+    color: white;
+    margin: -1rem -1rem 2rem -1rem;
+    padding: 2rem 1rem;
+    border-radius: 0 0 1rem 1rem;
+}
+
+.stats-card {
+    background: rgba(255,255,255,0.1);
+    border: 1px solid rgba(255,255,255,0.2);
+    border-radius: 0.5rem;
+    padding: 1rem;
+    text-align: center;
+}
+
+.provider-badge {
+    font-size: 0.75em;
+    padding: 0.25rem 0.5rem;
+}
+
+.cost-value {
+    font-weight: bold;
+    color: var(--bs-success);
+}
+
+.cost-value.high {
+    color: var(--bs-warning);
+}
+
+.cost-value.very-high {
+    color: var(--bs-danger);
+}
+
+.model-pricing-table {
+    font-size: 0.9em;
+}
+
+.model-pricing-table th {
+    background-color: var(--bs-light);
+    border-bottom: 2px solid var(--bs-primary);
+}
+
+.pricing-row:hover {
+    background-color: rgba(var(--bs-primary-rgb), 0.05);
+}
+
+.chart-container {
+    position: relative;
+    height: 300px;
+    margin: 1rem 0;
+}
+
+.cost-trend {
+    background: var(--bs-light);
+    border-radius: 0.5rem;
+    padding: 1rem;
+}
+
+.period-selector {
+    border-radius: 25px;
+}
+
+.cost-breakdown {
+    background: rgba(var(--bs-info-rgb), 0.1);
+    border-left: 4px solid var(--bs-info);
+    padding: 1rem;
+    margin: 1rem 0;
+}
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid py-4">
+    <!-- En-tête et résumé des coûts -->
+    <div class="cost-summary">
+        <div class="row align-items-center">
+            <div class="col-md-6">
+                <h1 class="h3 mb-2">
+                    <i class="fas fa-dollar-sign me-2"></i>Gestion des Coûts API
+                </h1>
+                <p class="mb-0">Surveillez vos dépenses par modèle et optimisez vos coûts</p>
+            </div>
+            <div class="col-md-6">
+                <div class="row">
+                    <div class="col-4">
+                        <div class="stats-card">
+                            <div class="h4 mb-1" id="totalCost">$0.00</div>
+                            <small>Total</small>
+                        </div>
+                    </div>
+                    <div class="col-4">
+                        <div class="stats-card">
+                            <div class="h4 mb-1" id="monthCost">$0.00</div>
+                            <small>Ce mois</small>
+                        </div>
+                    </div>
+                    <div class="col-4">
+                        <div class="stats-card">
+                            <div class="h4 mb-1" id="totalGenerations">0</div>
+                            <small>Générations</small>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Sélecteur de période -->
+    <div class="row mb-4">
+        <div class="col-md-6">
+            <div class="btn-group period-selector" role="group">
+                <input type="radio" class="btn-check" name="period" id="period7d" autocomplete="off" checked>
+                <label class="btn btn-outline-primary" for="period7d">7 jours</label>
+                
+                <input type="radio" class="btn-check" name="period" id="period30d" autocomplete="off">
+                <label class="btn btn-outline-primary" for="period30d">30 jours</label>
+                
+                <input type="radio" class="btn-check" name="period" id="period90d" autocomplete="off">
+                <label class="btn btn-outline-primary" for="period90d">90 jours</label>
+                
+                <input type="radio" class="btn-check" name="period" id="periodAll" autocomplete="off">
+                <label class="btn btn-outline-primary" for="periodAll">Tout</label>
+            </div>
+        </div>
+        <div class="col-md-6 text-end">
+            <button class="btn btn-outline-secondary" id="exportCosts">
+                <i class="fas fa-download me-2"></i>Exporter CSV
+            </button>
+            <button class="btn btn-outline-info" id="refreshData">
+                <i class="fas fa-sync-alt me-2"></i>Actualiser
+            </button>
+        </div>
+    </div>
+
+    <!-- Graphique des coûts -->
+    <div class="row mb-4">
+        <div class="col-12">
+            <div class="card">
+                <div class="card-header">
+                    <h5 class="card-title mb-0">
+                        <i class="fas fa-chart-line me-2"></i>Évolution des Coûts
+                    </h5>
+                </div>
+                <div class="card-body">
+                    <div class="chart-container">
+                        <canvas id="costChart"></canvas>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Répartition par modèle -->
+    <div class="row mb-4">
+        <div class="col-md-6">
+            <div class="card">
+                <div class="card-header">
+                    <h5 class="card-title mb-0">
+                        <i class="fas fa-robot me-2"></i>Coûts par Modèle
+                    </h5>
+                </div>
+                <div class="card-body">
+                    <div id="modelCostsContainer">
+                        <!-- Sera rempli dynamiquement -->
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-6">
+            <div class="card">
+                <div class="card-header">
+                    <h5 class="card-title mb-0">
+                        <i class="fas fa-building me-2"></i>Coûts par Fournisseur
+                    </h5>
+                </div>
+                <div class="card-body">
+                    <div class="chart-container">
+                        <canvas id="providerChart"></canvas>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Tableau de tarification -->
+    <div class="row mb-4">
+        <div class="col-12">
+            <div class="card">
+                <div class="card-header">
+                    <h5 class="card-title mb-0">
+                        <i class="fas fa-table me-2"></i>Tarification des Modèles
+                    </h5>
+                </div>
+                <div class="card-body">
+                    <div class="table-responsive">
+                        <table class="table table-hover model-pricing-table">
+                            <thead>
+                                <tr>
+                                    <th>Modèle</th>
+                                    <th>Fournisseur</th>
+                                    <th>Input ($/1K tokens)</th>
+                                    <th>Output ($/1K tokens)</th>
+                                    <th>Contexte</th>
+                                    <th>Utilisations</th>
+                                    <th>Coût Total</th>
+                                </tr>
+                            </thead>
+                            <tbody id="pricingTableBody">
+                                <!-- Sera rempli dynamiquement -->
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Dernières générations coûteuses -->
+    <div class="row">
+        <div class="col-12">
+            <div class="card">
+                <div class="card-header">
+                    <h5 class="card-title mb-0">
+                        <i class="fas fa-exclamation-triangle me-2"></i>Générations les Plus Coûteuses
+                    </h5>
+                </div>
+                <div class="card-body">
+                    <div id="expensiveGenerations">
+                        <!-- Sera rempli dynamiquement -->
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script>
+let costChart = null;
+let providerChart = null;
+let currentPeriod = '7d';
+
+document.addEventListener('DOMContentLoaded', function() {
+    loadCostData();
+    setupEventListeners();
+});
+
+function setupEventListeners() {
+    // Sélecteurs de période
+    document.querySelectorAll('input[name="period"]').forEach(radio => {
+        radio.addEventListener('change', function() {
+            currentPeriod = this.id.replace('period', '');
+            loadCostData();
+        });
+    });
+    
+    // Boutons d'action
+    document.getElementById('refreshData').addEventListener('click', loadCostData);
+    document.getElementById('exportCosts').addEventListener('click', exportCosts);
+}
+
+function loadCostData() {
+    fetch(`/api/costs?period=${currentPeriod}`)
+        .then(response => response.json())
+        .then(data => {
+            if (data.status === 'success') {
+                updateSummary(data.summary);
+                updateCostChart(data.timeline);
+                updateModelCosts(data.by_model);
+                updateProviderChart(data.by_provider);
+                updatePricingTable(data.pricing_table);
+                updateExpensiveGenerations(data.expensive_generations);
+            } else {
+                showToast('Erreur lors du chargement des données', 'error');
+            }
+        })
+        .catch(error => {
+            console.error('Erreur:', error);
+            showToast('Erreur de connexion', 'error');
+        });
+}
+
+function updateSummary(summary) {
+    document.getElementById('totalCost').textContent = formatCurrency(summary.total_cost);
+    document.getElementById('monthCost').textContent = formatCurrency(summary.month_cost);
+    document.getElementById('totalGenerations').textContent = summary.total_generations;
+}
+
+function updateCostChart(timeline) {
+    const ctx = document.getElementById('costChart').getContext('2d');
+    
+    if (costChart) {
+        costChart.destroy();
+    }
+    
+    costChart = new Chart(ctx, {
+        type: 'line',
+        data: {
+            labels: timeline.labels,
+            datasets: [{
+                label: 'Coût ($)',
+                data: timeline.costs,
+                borderColor: 'rgb(54, 162, 235)',
+                backgroundColor: 'rgba(54, 162, 235, 0.1)',
+                tension: 0.1,
+                fill: true
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            scales: {
+                y: {
+                    beginAtZero: true,
+                    ticks: {
+                        callback: function(value) {
+                            return '$' + value.toFixed(4);
+                        }
+                    }
+                }
+            },
+            plugins: {
+                tooltip: {
+                    callbacks: {
+                        label: function(context) {
+                            return 'Coût: $' + context.parsed.y.toFixed(6);
+                        }
+                    }
+                }
+            }
+        }
+    });
+}
+
+function updateModelCosts(modelData) {
+    const container = document.getElementById('modelCostsContainer');
+    
+    container.innerHTML = modelData.map(model => `
+        <div class="cost-breakdown mb-3">
+            <div class="d-flex justify-content-between align-items-center mb-2">
+                <div>
+                    <strong>${model.model_name}</strong>
+                    <span class="badge bg-secondary provider-badge">${model.provider}</span>
+                </div>
+                <div class="cost-value ${getCostClass(model.total_cost)}">
+                    ${formatCurrency(model.total_cost)}
+                </div>
+            </div>
+            <div class="row">
+                <div class="col-6">
+                    <small class="text-muted">
+                        Input: ${model.input_tokens.toLocaleString()} tokens
+                    </small>
+                </div>
+                <div class="col-6">
+                    <small class="text-muted">
+                        Output: ${model.output_tokens.toLocaleString()} tokens
+                    </small>
+                </div>
+            </div>
+            <div class="progress mt-2" style="height: 4px;">
+                <div class="progress-bar" style="width: ${model.percentage}%"></div>
+            </div>
+        </div>
+    `).join('');
+}
+
+function updateProviderChart(providerData) {
+    const ctx = document.getElementById('providerChart').getContext('2d');
+    
+    if (providerChart) {
+        providerChart.destroy();
+    }
+    
+    providerChart = new Chart(ctx, {
+        type: 'doughnut',
+        data: {
+            labels: providerData.map(p => p.provider),
+            datasets: [{
+                data: providerData.map(p => p.total_cost),
+                backgroundColor: [
+                    'rgba(255, 99, 132, 0.8)',
+                    'rgba(54, 162, 235, 0.8)',
+                    'rgba(255, 205, 86, 0.8)',
+                    'rgba(75, 192, 192, 0.8)'
+                ]
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+                tooltip: {
+                    callbacks: {
+                        label: function(context) {
+                            return context.label + ': $' + context.parsed.toFixed(6);
+                        }
+                    }
+                }
+            }
+        }
+    });
+}
+
+function updatePricingTable(pricingData) {
+    const tbody = document.getElementById('pricingTableBody');
+    
+    tbody.innerHTML = pricingData.map(model => `
+        <tr class="pricing-row">
+            <td><strong>${model.model_name}</strong></td>
+            <td>
+                <span class="badge bg-${model.provider === 'Anthropic' ? 'primary' : 'info'} provider-badge">
+                    ${model.provider}
+                </span>
+            </td>
+            <td>$${model.input_price.toFixed(3)}</td>
+            <td>$${model.output_price.toFixed(3)}</td>
+            <td>${model.context_window.toLocaleString()}</td>
+            <td>${model.usage_count}</td>
+            <td class="cost-value ${getCostClass(model.total_cost)}">
+                ${formatCurrency(model.total_cost)}
+            </td>
+        </tr>
+    `).join('');
+}
+
+function updateExpensiveGenerations(generations) {
+    const container = document.getElementById('expensiveGenerations');
+    
+    if (generations.length === 0) {
+        container.innerHTML = '<p class="text-muted">Aucune génération coûteuse récente</p>';
+        return;
+    }
+    
+    container.innerHTML = generations.map(gen => `
+        <div class="card mb-3">
+            <div class="card-body">
+                <div class="d-flex justify-content-between align-items-start mb-2">
+                    <div>
+                        <h6 class="card-title mb-1">${gen.model_name}</h6>
+                        <small class="text-muted">${formatDate(gen.created_at)}</small>
+                    </div>
+                    <span class="cost-value ${getCostClass(gen.total_cost)}">
+                        ${formatCurrency(gen.total_cost)}
+                    </span>
+                </div>
+                <div class="row">
+                    <div class="col-md-6">
+                        <small class="text-muted">
+                            Input: ${gen.input_tokens.toLocaleString()} tokens
+                        </small>
+                    </div>
+                    <div class="col-md-6">
+                        <small class="text-muted">
+                            Output: ${gen.output_tokens.toLocaleString()} tokens
+                        </small>
+                    </div>
+                </div>
+                <div class="mt-2">
+                    <small class="text-muted">
+                        Prompt: ${gen.prompt_preview}...
+                    </small>
+                </div>
+            </div>
+        </div>
+    `).join('');
+}
+
+function formatCurrency(amount) {
+    if (amount < 0.001) {
+        return '$' + amount.toFixed(6);
+    } else if (amount < 0.01) {
+        return '$' + amount.toFixed(4);
+    } else {
+        return '$' + amount.toFixed(2);
+    }
+}
+
+function getCostClass(cost) {
+    if (cost > 1.0) return 'very-high';
+    if (cost > 0.1) return 'high';
+    return '';
+}
+
+function formatDate(dateString) {
+    const date = new Date(dateString);
+    return date.toLocaleDateString('fr-FR', {
+        day: '2-digit',
+        month: '2-digit',
+        year: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit'
+    });
+}
+
+function exportCosts() {
+    fetch(`/api/costs/export?period=${currentPeriod}`)
+        .then(response => response.blob())
+        .then(blob => {
+            const url = window.URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `costs_${currentPeriod}_${new Date().toISOString().split('T')[0]}.csv`;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            window.URL.revokeObjectURL(url);
+            showToast('Export réussi', 'success');
+        })
+        .catch(error => {
+            console.error('Erreur export:', error);
+            showToast('Erreur lors de l\'export', 'error');
+        });
+}
+
+function showToast(message, type = 'info') {
+    if (window.showToast) {
+        window.showToast(message, type);
+    } else {
+        alert(message);
+    }
+}
+</script>
+{% endblock %}

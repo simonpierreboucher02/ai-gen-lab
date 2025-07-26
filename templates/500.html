@@ -1,0 +1,93 @@
+{% extends "base.html" %}
+
+{% block title %}Erreur serveur - Claude AI Dashboard{% endblock %}
+
+{% block content %}
+<div class="container-fluid py-5">
+    <div class="row justify-content-center">
+        <div class="col-lg-6 col-md-8 text-center">
+            <div class="error-page">
+                <div class="error-icon mb-4">
+                    <i class="fas fa-exclamation-triangle" style="font-size: 4rem; color: var(--danger-color); opacity: 0.7;"></i>
+                </div>
+                
+                <h1 class="error-title">500</h1>
+                <h2 class="error-subtitle mb-4">Erreur serveur</h2>
+                
+                <p class="error-description mb-4">
+                    Une erreur inattendue s'est produite sur le serveur. 
+                    Notre équipe a été notifiée et travaille à la résolution du problème.
+                </p>
+                
+                <div class="error-actions">
+                    <a href="{{ url_for('dashboard') }}" class="btn btn-primary me-3">
+                        <i class="fas fa-home me-2"></i>Retour au Dashboard
+                    </a>
+                    <button onclick="location.reload()" class="btn btn-outline-secondary">
+                        <i class="fas fa-redo me-2"></i>Réessayer
+                    </button>
+                </div>
+                
+                <div class="error-help mt-4">
+                    <small class="text-muted">
+                        Si le problème persiste, veuillez contacter le support technique.
+                    </small>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<style>
+.error-page {
+    padding: 3rem 0;
+}
+
+.error-title {
+    font-size: 6rem;
+    font-weight: 700;
+    color: var(--danger-color);
+    margin-bottom: 1rem;
+    line-height: 1;
+}
+
+.error-subtitle {
+    font-size: 2rem;
+    font-weight: 600;
+    color: var(--text-color);
+}
+
+.error-description {
+    font-size: 1.1rem;
+    color: var(--text-muted);
+    max-width: 450px;
+    margin: 0 auto;
+}
+
+.error-actions .btn {
+    margin-bottom: 1rem;
+}
+
+.error-help {
+    border-top: 1px solid var(--border-color);
+    padding-top: 1rem;
+    margin-top: 2rem;
+}
+
+@media (max-width: 576px) {
+    .error-title {
+        font-size: 4rem;
+    }
+    
+    .error-subtitle {
+        font-size: 1.5rem;
+    }
+    
+    .error-actions .btn {
+        display: block;
+        width: 100%;
+        margin-bottom: 0.5rem;
+    }
+}
+</style>
+{% endblock %}

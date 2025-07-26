@@ -1,0 +1,760 @@
+{% extends "base.html" %}
+
+{% block title %}Playground - {{ generation.model_used }} - Claude AI Dashboard{% endblock %}
+
+{% block extra_head %}
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/themes/prism-tomorrow.min.css">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-core.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/plugins/autoloader/prism-autoloader.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/plugins/copy-to-clipboard/prism-copy-to-clipboard.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/marked/5.1.1/marked.min.js"></script>
+
+<style>
+.playground-container {
+    max-width: 1400px;
+    margin: 0 auto;
+    padding: 1rem;
+}
+
+.generation-header {
+    background: linear-gradient(135deg, var(--bs-primary), var(--bs-info));
+    color: white;
+    border-radius: 1rem;
+    padding: 2rem;
+    margin-bottom: 2rem;
+}
+
+.generation-meta {
+    display: flex;
+    gap: 2rem;
+    margin-top: 1rem;
+    flex-wrap: wrap;
+}
+
+.meta-item {
+    background: rgba(255,255,255,0.1);
+    padding: 0.5rem 1rem;
+    border-radius: 0.5rem;
+    font-size: 0.9em;
+}
+
+.toolbar {
+    background: var(--bs-light);
+    border-radius: 0.5rem;
+    padding: 1rem;
+    margin-bottom: 2rem;
+    display: flex;
+    gap: 1rem;
+    flex-wrap: wrap;
+    align-items: center;
+}
+
+.toolbar-group {
+    display: flex;
+    gap: 0.5rem;
+    align-items: center;
+}
+
+.toolbar-separator {
+    width: 1px;
+    height: 2rem;
+    background: var(--bs-secondary);
+    opacity: 0.3;
+}
+
+.content-container {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 2rem;
+}
+
+.content-container.split-view {
+    grid-template-columns: 1fr 1fr;
+}
+
+.content-panel {
+    background: white;
+    border-radius: 0.5rem;
+    border: 1px solid rgba(0,0,0,0.1);
+    overflow: hidden;
+}
+
+.panel-header {
+    background: var(--bs-light);
+    padding: 1rem;
+    border-bottom: 1px solid rgba(0,0,0,0.1);
+    display: flex;
+    justify-content: between;
+    align-items: center;
+}
+
+.panel-content {
+    padding: 1.5rem;
+    max-height: 70vh;
+    overflow-y: auto;
+}
+
+.code-block {
+    position: relative;
+    margin: 1rem 0;
+}
+
+.code-block-header {
+    background: #2d3748;
+    color: white;
+    padding: 0.5rem 1rem;
+    font-size: 0.85em;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    border-radius: 0.25rem 0.25rem 0 0;
+}
+
+.code-language {
+    font-weight: bold;
+}
+
+.copy-button {
+    background: none;
+    border: none;
+    color: white;
+    cursor: pointer;
+    padding: 0.25rem 0.5rem;
+    border-radius: 0.25rem;
+    font-size: 0.8em;
+}
+
+.copy-button:hover {
+    background: rgba(255,255,255,0.1);
+}
+
+pre[class*="language-"] {
+    margin: 0;
+    border-radius: 0 0 0.25rem 0.25rem;
+}
+
+.stats-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: 1rem;
+    margin: 1rem 0;
+}
+
+.stat-card {
+    background: var(--bs-light);
+    padding: 1rem;
+    border-radius: 0.5rem;
+    text-align: center;
+}
+
+.stat-value {
+    font-size: 1.5em;
+    font-weight: bold;
+    color: var(--bs-primary);
+}
+
+.export-options {
+    display: flex;
+    gap: 0.5rem;
+    flex-wrap: wrap;
+}
+
+.format-badge {
+    display: inline-block;
+    padding: 0.25rem 0.5rem;
+    background: var(--bs-primary);
+    color: white;
+    border-radius: 0.25rem;
+    font-size: 0.8em;
+    margin: 0.25rem;
+}
+
+.search-highlight {
+    background: yellow;
+    padding: 2px;
+    border-radius: 2px;
+}
+
+.analysis-section {
+    margin: 1rem 0;
+    padding: 1rem;
+    background: rgba(var(--bs-info-rgb), 0.1);
+    border-left: 4px solid var(--bs-info);
+    border-radius: 0.25rem;
+}
+
+.view-mode-toggle {
+    display: flex;
+    background: var(--bs-secondary);
+    border-radius: 0.5rem;
+    overflow: hidden;
+}
+
+.view-mode-btn {
+    padding: 0.5rem 1rem;
+    border: none;
+    background: transparent;
+    color: white;
+    cursor: pointer;
+    transition: all 0.3s;
+}
+
+.view-mode-btn.active {
+    background: var(--bs-primary);
+}
+
+@media (max-width: 768px) {
+    .content-container.split-view {
+        grid-template-columns: 1fr;
+    }
+    
+    .generation-meta {
+        flex-direction: column;
+        gap: 0.5rem;
+    }
+    
+    .toolbar {
+        flex-direction: column;
+        align-items: stretch;
+    }
+}
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="playground-container">
+    <!-- En-tête de la génération -->
+    <div class="generation-header">
+        <h1 class="h3 mb-0">
+            <i class="fas fa-code me-2"></i>AI Playground - Analyse de Génération
+        </h1>
+        <div class="generation-meta">
+            <div class="meta-item">
+                <i class="fas fa-robot me-1"></i>{{ generation.model_used }}
+            </div>
+            <div class="meta-item">
+                <i class="fas fa-clock me-1"></i>
+                {% if generation.created_at %}
+                    {% if generation.created_at.strftime %}
+                        {{ generation.created_at.strftime('%d/%m/%Y %H:%M') }}
+                    {% else %}
+                        {{ generation.created_at }}
+                    {% endif %}
+                {% else %}
+                    Date inconnue
+                {% endif %}
+            </div>
+            <div class="meta-item">
+                <i class="fas fa-hashtag me-1"></i>{{ generation.token_count }} tokens
+            </div>
+            <div class="meta-item">
+                <i class="fas fa-check-circle me-1"></i>{{ generation.status }}
+            </div>
+        </div>
+    </div>
+
+    <!-- Barre d'outils -->
+    <div class="toolbar">
+        <div class="toolbar-group">
+            <label class="form-label mb-0">Mode d'affichage:</label>
+            <div class="view-mode-toggle">
+                <button class="view-mode-btn active" data-mode="single">
+                    <i class="fas fa-file-alt me-1"></i>Simple
+                </button>
+                <button class="view-mode-btn" data-mode="split">
+                    <i class="fas fa-columns me-1"></i>Divisé
+                </button>
+                <button class="view-mode-btn" data-mode="code">
+                    <i class="fas fa-code me-1"></i>Code
+                </button>
+            </div>
+        </div>
+
+        <div class="toolbar-separator"></div>
+
+        <div class="toolbar-group">
+            <button class="btn btn-sm btn-outline-primary" id="extractCodeBtn">
+                <i class="fas fa-code me-1"></i>Extraire Code
+            </button>
+            <button class="btn btn-sm btn-outline-success" id="copyAllBtn">
+                <i class="fas fa-copy me-1"></i>Copier Tout
+            </button>
+            <button class="btn btn-sm btn-outline-info" id="searchBtn">
+                <i class="fas fa-search me-1"></i>Rechercher
+            </button>
+            <button class="btn btn-sm btn-outline-warning" id="shareBtn" onclick="shareGeneration('{{ generation.id }}')">
+                <i class="fas fa-share-alt me-1"></i>Partager
+            </button>
+        </div>
+
+        <div class="toolbar-separator"></div>
+
+        <div class="toolbar-group">
+            <label class="form-label mb-0">Exporter:</label>
+            <div class="export-options">
+                <button class="btn btn-sm btn-outline-secondary" data-format="txt" onclick="exportGeneration('{{ generation.id }}', 'txt')">
+                    <i class="fas fa-file-alt me-1"></i>TXT
+                </button>
+                <button class="btn btn-sm btn-outline-secondary" data-format="md" onclick="exportGeneration('{{ generation.id }}', 'md')">
+                    <i class="fab fa-markdown me-1"></i>MD
+                </button>
+                <button class="btn btn-sm btn-outline-secondary" data-format="html" onclick="exportGeneration('{{ generation.id }}', 'html')">
+                    <i class="fab fa-html5 me-1"></i>HTML
+                </button>
+                <button class="btn btn-sm btn-outline-secondary" data-format="json" onclick="exportGeneration('{{ generation.id }}', 'json')">
+                    <i class="fas fa-code me-1"></i>JSON
+                </button>
+                <button class="btn btn-sm btn-outline-secondary" data-format="pdf" onclick="exportGeneration('{{ generation.id }}', 'pdf')">
+                    <i class="fas fa-file-pdf me-1"></i>PDF
+                </button>
+            </div>
+        </div>
+
+        <div class="toolbar-separator"></div>
+
+        <div class="toolbar-group">
+            <input type="text" class="form-control form-control-sm" id="searchInput" placeholder="Rechercher..." style="display: none;">
+            <button class="btn btn-sm btn-outline-danger" onclick="history.back()">
+                <i class="fas fa-arrow-left me-1"></i>Retour
+            </button>
+        </div>
+    </div>
+
+    <!-- Statistiques de la génération -->
+    <div class="stats-grid">
+        <div class="stat-card">
+            <div class="stat-value" id="wordCount">-</div>
+            <small class="text-muted">Mots</small>
+        </div>
+        <div class="stat-card">
+            <div class="stat-value" id="charCount">-</div>
+            <small class="text-muted">Caractères</small>
+        </div>
+        <div class="stat-card">
+            <div class="stat-value" id="codeBlockCount">-</div>
+            <small class="text-muted">Blocs de code</small>
+        </div>
+        <div class="stat-card">
+            <div class="stat-value" id="languageCount">-</div>
+            <small class="text-muted">Langages</small>
+        </div>
+    </div>
+
+    <!-- Contenu principal -->
+    <div class="content-container" id="contentContainer">
+        <!-- Panel de contenu original -->
+        <div class="content-panel">
+            <div class="panel-header">
+                <h5 class="mb-0">
+                    <i class="fas fa-file-text me-2"></i>Contenu Original
+                </h5>
+                <div>
+                    <button class="btn btn-sm btn-outline-primary" id="toggleMarkdown">
+                        <i class="fas fa-eye me-1"></i>Aperçu MD
+                    </button>
+                </div>
+            </div>
+            <div class="panel-content" id="originalContent">
+                <div id="rawContent" style="display: block;">
+                    <pre><code>{{ generation.response }}</code></pre>
+                </div>
+                <div id="markdownContent" style="display: none;"></div>
+            </div>
+        </div>
+
+        <!-- Panel de code (caché par défaut) -->
+        <div class="content-panel" id="codePanel" style="display: none;">
+            <div class="panel-header">
+                <h5 class="mb-0">
+                    <i class="fas fa-code me-2"></i>Code Extrait
+                </h5>
+                <div>
+                    <span class="badge bg-primary" id="codeLanguages">Langages détectés</span>
+                </div>
+            </div>
+            <div class="panel-content" id="extractedCode">
+                <!-- Le code extrait apparaîtra ici -->
+            </div>
+        </div>
+    </div>
+
+    <!-- Analyse du contenu -->
+    <div class="analysis-section" id="analysisSection">
+        <h6><i class="fas fa-chart-bar me-2"></i>Analyse du Contenu</h6>
+        <div id="analysisContent">
+            <!-- L'analyse apparaîtra ici -->
+        </div>
+    </div>
+</div>
+
+<script>
+let currentGeneration = {{ generation | tojsonfilter | safe }};
+let extractedCodeBlocks = [];
+let currentViewMode = 'single';
+
+document.addEventListener('DOMContentLoaded', function() {
+    initializePlayground();
+    setupEventListeners();
+    analyzeContent();
+});
+
+function initializePlayground() {
+    // Vérifier que marked est chargé
+    if (typeof marked !== 'undefined') {
+        const markdownContent = marked.parse(currentGeneration.response);
+        const markdownEl = document.getElementById('markdownContent');
+        if (markdownEl) markdownEl.innerHTML = markdownContent;
+    }
+    
+    // Extraire automatiquement les blocs de code
+    extractCodeBlocks();
+    
+    // Calculer les statistiques
+    updateStats();
+}
+
+function setupEventListeners() {
+    // Mode d'affichage
+    document.querySelectorAll('.view-mode-btn').forEach(btn => {
+        btn.addEventListener('click', function() {
+            switchViewMode(this.dataset.mode);
+        });
+    });
+    
+    // Boutons d'action
+    document.getElementById('extractCodeBtn').addEventListener('click', showExtractedCode);
+    document.getElementById('copyAllBtn').addEventListener('click', copyAllContent);
+    document.getElementById('searchBtn').addEventListener('click', toggleSearch);
+    document.getElementById('toggleMarkdown').addEventListener('click', toggleMarkdownView);
+    
+    // Export
+    document.querySelectorAll('[data-format]').forEach(btn => {
+        btn.addEventListener('click', function() {
+            exportContent(this.dataset.format);
+        });
+    });
+    
+    // Recherche
+    document.getElementById('searchInput').addEventListener('input', performSearch);
+}
+
+function switchViewMode(mode) {
+    currentViewMode = mode;
+    
+    // Mettre à jour les boutons
+    document.querySelectorAll('.view-mode-btn').forEach(btn => {
+        btn.classList.toggle('active', btn.dataset.mode === mode);
+    });
+    
+    const container = document.getElementById('contentContainer');
+    const codePanel = document.getElementById('codePanel');
+    
+    switch(mode) {
+        case 'single':
+            container.classList.remove('split-view');
+            codePanel.style.display = 'none';
+            break;
+        case 'split':
+            container.classList.add('split-view');
+            codePanel.style.display = 'block';
+            showExtractedCode();
+            break;
+        case 'code':
+            container.classList.remove('split-view');
+            codePanel.style.display = 'block';
+            document.querySelector('.content-panel:first-child').style.display = 'none';
+            showExtractedCode();
+            break;
+    }
+}
+
+function extractCodeBlocks() {
+    const content = currentGeneration.response;
+    const codeBlockRegex = /```(\w+)?\n([\s\S]*?)```/g;
+    const inlineCodeRegex = /`([^`]+)`/g;
+    
+    extractedCodeBlocks = [];
+    let match;
+    
+    // Extraire les blocs de code
+    while ((match = codeBlockRegex.exec(content)) !== null) {
+        extractedCodeBlocks.push({
+            type: 'block',
+            language: match[1] || 'text',
+            code: match[2].trim()
+        });
+    }
+    
+    // Extraire le code inline
+    const inlineCodes = [];
+    while ((match = inlineCodeRegex.exec(content)) !== null) {
+        inlineCodes.push({
+            type: 'inline',
+            language: 'text',
+            code: match[1]
+        });
+    }
+    
+    // Ajouter le code inline s'il y en a beaucoup
+    if (inlineCodes.length > 5) {
+        extractedCodeBlocks.push({
+            type: 'inline-collection',
+            language: 'text',
+            code: inlineCodes.map(c => c.code).join('\n')
+        });
+    }
+}
+
+function showExtractedCode() {
+    const container = document.getElementById('extractedCode');
+    
+    if (extractedCodeBlocks.length === 0) {
+        container.innerHTML = '<p class="text-muted">Aucun bloc de code détecté dans cette génération.</p>';
+        return;
+    }
+    
+    let html = '';
+    const languages = new Set();
+    
+    extractedCodeBlocks.forEach((block, index) => {
+        languages.add(block.language);
+        
+        html += `
+            <div class="code-block">
+                <div class="code-block-header">
+                    <span class="code-language">${block.language}</span>
+                    <div>
+                        <button class="copy-button" onclick="copyCodeBlock(${index})">
+                            <i class="fas fa-copy"></i> Copier
+                        </button>
+                        <button class="copy-button" onclick="downloadCodeBlock(${index})">
+                            <i class="fas fa-download"></i> Télécharger
+                        </button>
+                    </div>
+                </div>
+                <pre><code class="language-${block.language}">${escapeHtml(block.code)}</code></pre>
+            </div>
+        `;
+    });
+    
+    container.innerHTML = html;
+    
+    // Mettre à jour l'affichage des langages
+    document.getElementById('codeLanguages').textContent = Array.from(languages).join(', ');
+    
+    // Appliquer la coloration syntaxique
+    Prism.highlightAllUnder(container);
+}
+
+function updateStats() {
+    analyzeContent();
+}
+
+function analyzeContent() {
+    const content = currentGeneration.response;
+    
+    // Analyse simple du contenu
+    const words = content.split(/\s+/).filter(w => w.length > 0);
+    const lines = content.split('\n');
+    const chars = content.length;
+    
+    // Mise à jour des statistiques dans le DOM
+    const wordCountEl = document.getElementById('wordCount');
+    const charCountEl = document.getElementById('charCount');
+    const lineCountEl = document.getElementById('lineCount');
+    const codeBlockCountEl = document.getElementById('codeBlockCount');
+    
+    if (wordCountEl) wordCountEl.textContent = words.length;
+    if (charCountEl) charCountEl.textContent = chars;
+    if (lineCountEl) lineCountEl.textContent = lines.length;
+    if (codeBlockCountEl) codeBlockCountEl.textContent = extractedCodeBlocks.length;
+    
+    // Analyse avancée du contenu
+    const analysis = {
+        hasCode: extractedCodeBlocks.length > 0,
+        hasMarkdown: /#{1,6}\s/.test(content),
+        hasLists: /^[\*\-\+]\s/m.test(content),
+        hasLinks: /\[.*\]\(.*\)/.test(content),
+        complexity: content.length > 1000 ? 'Élevée' : content.length > 500 ? 'Moyenne' : 'Faible'
+    };
+    
+    let analysisHtml = '<div class="row">';
+    if (analysis.hasCode) {
+        analysisHtml += '<div class="col-md-6"><span class="format-badge">Code détecté</span></div>';
+    }
+    if (analysis.hasMarkdown) {
+        analysisHtml += '<div class="col-md-6"><span class="format-badge">Markdown</span></div>';
+    }
+    if (analysis.hasLists) {
+        analysisHtml += '<div class="col-md-6"><span class="format-badge">Listes</span></div>';
+    }
+    if (analysis.hasLinks) {
+        analysisHtml += '<div class="col-md-6"><span class="format-badge">Liens</span></div>';
+    }
+    analysisHtml += `</div><p class="mt-2 mb-0">Complexité: <strong>${analysis.complexity}</strong></p>`;
+    
+    const analysisEl = document.getElementById('analysisContent');
+    if (analysisEl) analysisEl.innerHTML = analysisHtml;
+}
+
+function copyCodeBlock(index) {
+    const block = extractedCodeBlocks[index];
+    navigator.clipboard.writeText(block.code).then(() => {
+        showToast('Code copié !', 'success');
+    });
+}
+
+function downloadCodeBlock(index) {
+    const block = extractedCodeBlocks[index];
+    const extension = getFileExtension(block.language);
+    const filename = `code_block_${index + 1}.${extension}`;
+    
+    const blob = new Blob([block.code], { type: 'text/plain' });
+    downloadFile(blob, filename);
+    
+    showToast(`Fichier ${filename} téléchargé !`, 'success');
+}
+
+function copyAllContent() {
+    navigator.clipboard.writeText(currentGeneration.response).then(() => {
+        showToast('Contenu complet copié !', 'success');
+    });
+}
+
+function toggleMarkdownView() {
+    const rawContent = document.getElementById('rawContent');
+    const markdownContent = document.getElementById('markdownContent');
+    const button = document.getElementById('toggleMarkdown');
+    
+    if (rawContent.style.display === 'none') {
+        rawContent.style.display = 'block';
+        markdownContent.style.display = 'none';
+        button.innerHTML = '<i class="fas fa-eye me-1"></i>Aperçu MD';
+    } else {
+        rawContent.style.display = 'none';
+        markdownContent.style.display = 'block';
+        button.innerHTML = '<i class="fas fa-code me-1"></i>Code MD';
+    }
+}
+
+function toggleSearch() {
+    const searchInput = document.getElementById('searchInput');
+    if (searchInput.style.display === 'none') {
+        searchInput.style.display = 'block';
+        searchInput.focus();
+    } else {
+        searchInput.style.display = 'none';
+        clearSearch();
+    }
+}
+
+function performSearch() {
+    const searchTerm = document.getElementById('searchInput').value;
+    const content = document.getElementById('originalContent');
+    
+    if (!searchTerm) {
+        clearSearch();
+        return;
+    }
+    
+    // Simple recherche et surlignage
+    const regex = new RegExp(`(${searchTerm})`, 'gi');
+    const originalText = currentGeneration.response;
+    const highlightedText = originalText.replace(regex, '<span class="search-highlight">$1</span>');
+    
+    document.querySelector('#rawContent code').innerHTML = highlightedText;
+}
+
+function clearSearch() {
+    const codeEl = document.querySelector('#rawContent code');
+    if (codeEl) codeEl.textContent = currentGeneration.response;
+}
+
+function exportContent(format) {
+    const content = currentGeneration.response;
+    const filename = `generation_${currentGeneration.id}`;
+    
+    let blob, mimeType;
+    
+    switch(format) {
+        case 'txt':
+            blob = new Blob([content], { type: 'text/plain' });
+            downloadFile(blob, `${filename}.txt`);
+            break;
+        case 'md':
+            blob = new Blob([content], { type: 'text/markdown' });
+            downloadFile(blob, `${filename}.md`);
+            break;
+        case 'html':
+            let htmlContent = `<!DOCTYPE html>
+<html><head><meta charset="UTF-8"><title>Génération AI Playground</title></head>
+<body><div style="max-width: 800px; margin: 0 auto; padding: 20px; font-family: Arial, sans-serif;">`;
+            
+            if (typeof marked !== 'undefined') {
+                htmlContent += marked.parse(content);
+            } else {
+                htmlContent += `<pre>${escapeHtml(content)}</pre>`;
+            }
+            
+            htmlContent += `</div></body></html>`;
+            blob = new Blob([htmlContent], { type: 'text/html' });
+            downloadFile(blob, `${filename}.html`);
+            break;
+        case 'pdf':
+            // Pour le PDF, on redirige vers une page d'export
+            window.open(`/api/generation/${currentGeneration.id}/export/pdf`, '_blank');
+            break;
+    }
+}
+
+function downloadFile(blob, filename) {
+    const url = window.URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    window.URL.revokeObjectURL(url);
+    
+    showToast(`Fichier ${filename} téléchargé !`, 'success');
+}
+
+function getFileExtension(language) {
+    const extensions = {
+        'javascript': 'js',
+        'python': 'py',
+        'html': 'html',
+        'css': 'css',
+        'java': 'java',
+        'cpp': 'cpp',
+        'c': 'c',
+        'php': 'php',
+        'ruby': 'rb',
+        'go': 'go',
+        'rust': 'rs',
+        'sql': 'sql',
+        'bash': 'sh',
+        'json': 'json',
+        'xml': 'xml',
+        'yaml': 'yml'
+    };
+    
+    return extensions[language] || 'txt';
+}
+
+function escapeHtml(text) {
+    const div = document.createElement('div');
+    div.textContent = text;
+    return div.innerHTML;
+}
+
+function showToast(message, type = 'info') {
+    if (window.showToast) {
+        window.showToast(message, type);
+    } else {
+        alert(message);
+    }
+}
+</script>
+{% endblock %}
